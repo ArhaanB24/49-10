@@ -1,0 +1,6 @@
+{
+  "name": "Ultimate Cricket XI & Match Simulator",
+  "description": "An authentic fantasy draft and match simulator featuring iconic squads from the 1950s to present day, real player ratings, real-time availability tracking, and live ball-by-ball simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
