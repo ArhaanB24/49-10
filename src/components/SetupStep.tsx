@@ -156,7 +156,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
 
   const copyShareLink = () => {
     if (!roomCode) return;
-    const shareUrl = `${window.location.origin}/room/${roomCode}`;
+    const shareUrl = `${window.location.origin}/?room=${roomCode}`;
     navigator.clipboard.writeText(shareUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);

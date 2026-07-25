@@ -82,7 +82,9 @@ export const App: React.FC = () => {
       const codeFromPath = roomIdx !== -1 && pathParts[roomIdx + 1] ? pathParts[roomIdx + 1] : null;
       const urlParams = new URLSearchParams(window.location.search);
       const codeFromQuery = urlParams.get('room');
-      const targetCode = (codeFromPath || codeFromQuery || '').trim().toUpperCase();
+      const hashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash);
+      const codeFromHash = hashParams.get('room');
+      const targetCode = (codeFromPath || codeFromQuery || codeFromHash || '').trim().toUpperCase();
 
       if (targetCode && targetCode.length === 6) {
         const r = await getRoom(targetCode);
@@ -122,8 +124,8 @@ export const App: React.FC = () => {
             }
           }
 
-          if (window.location.pathname !== `/room/${targetCode}`) {
-            window.history.pushState({}, '', `/room/${targetCode}`);
+          if (!window.location.search.includes(`room=${targetCode}`)) {
+            window.history.pushState({}, '', `/?room=${targetCode}`);
           }
         }
       }
@@ -221,7 +223,7 @@ export const App: React.FC = () => {
 
       if (res.success && res.code) {
         setRoomCode(res.code);
-        window.history.pushState({}, '', `/room/${res.code}`);
+        window.history.pushState({}, '', `/?room=${res.code}`);
         setMyPlayerRole('p1');
         setFormat(selectedFormat);
         setPitch(selectedPitch);
@@ -264,7 +266,7 @@ export const App: React.FC = () => {
     });
 
     setRoomCode(res.code);
-    window.history.pushState({}, '', `/room/${res.code}`);
+    window.history.pushState({}, '', `/?room=${res.code}`);
     setMyPlayerRole('p2');
     setIsAiMode(false);
 
