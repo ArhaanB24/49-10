@@ -1,0 +1,320 @@
+// Dual-mode Room Service (Express Server API + LocalStorage/BroadcastChannel Fallback)
+// Ensures multiplayer rooms work seamlessly on Cloud Run, Vercel, static preview iFrames, and multi-tab windows without network errors.
+
+export interface RoomState {
+  code: string;
+  status: 'SETUP' | 'DRAFT' | 'SUMMARY' | 'SIMULATION' | 'SCORECARD';
+  format: 'T20' | 'ODI';
+  pitch: string;
+  playMode: 'VS_AI' | 'LOCAL_2P' | 'ONLINE_ROOM';
+  p1: {
+    name: string;
+    squad: any[];
+    battingOrder: any[];
+    composition: any;
+    isReady: boolean;
+  };
+  p2: {
+    name: string;
+    squad: any[];
+    battingOrder: any[];
+    composition: any;
+    isAi: boolean;
+    isReady: boolean;
+  };
+  globalDraftedCanonicalIds: string[];
+  usedSquadIndices: number[];
+  activeDraftTurn: 'p1' | 'p2';
+  currentSquadIndex: number;
+  turnStartTime: number;
+  tossWinner: 'p1' | 'p2' | null;
+  tossDecision: 'Bat' | 'Bowl' | null;
+  matchResult: any | null;
+  lastUpdated: number;
+}
+
+// Generate 6-digit numeric room code
+function generateRoomCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Draw random unused squad index
+function drawUnusedSquadIndex(usedIndices: number[], totalSquads = 12): number {
+  if (usedIndices.length >= totalSquads) {
+    const last = usedIndices[usedIndices.length - 1];
+    usedIndices.length = 0;
+    if (last !== undefined) usedIndices.push(last);
+  }
+  let attempts = 0;
+  let idx = Math.floor(Math.random() * totalSquads);
+  while (usedIndices.includes(idx) && attempts < 1000) {
+    idx = Math.floor(Math.random() * totalSquads);
+    attempts++;
+  }
+  usedIndices.push(idx);
+  return idx;
+}
+
+// BroadcastChannel manager
+const channels: Map<string, BroadcastChannel> = new Map();
+
+function getChannel(code: string): BroadcastChannel | null {
+  if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return null;
+  if (!channels.has(code)) {
+    channels.set(code, new BroadcastChannel(`cricket_room_${code}`));
+  }
+  return channels.get(code)!;
+}
+
+export function subscribeToRoom(code: string, onUpdate: (room: RoomState) => void): () => void {
+  const bc = getChannel(code);
+  if (bc) {
+    const handler = (event: MessageEvent) => {
+      if (event.data && event.data.room) {
+        onUpdate(event.data.room);
+      }
+    };
+    bc.addEventListener('message', handler);
+
+    // Also listen for localStorage storage event for cross-window fallback
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === `cricket_room_${code}` && e.newValue) {
+        try {
+          const room = JSON.parse(e.newValue);
+          onUpdate(room);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', storageHandler);
+
+    return () => {
+      bc.removeEventListener('message', handler);
+      window.removeEventListener('storage', storageHandler);
+    };
+  }
+  return () => {};
+}
+
+function broadcastRoom(room: RoomState) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`cricket_room_${room.code}`, JSON.stringify(room));
+    const bc = getChannel(room.code);
+    if (bc) {
+      bc.postMessage({ type: 'ROOM_UPDATE', room });
+    }
+  }
+}
+
+// Helper to safely call server API and check if response is JSON
+async function safeFetchJson(url: string, options?: RequestInit): Promise<any | null> {
+  try {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await res.json();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// CREATE ROOM
+export async function createRoom(params: {
+  p1Name: string;
+  p1Comp: any;
+  format: 'T20' | 'ODI';
+  pitch: string;
+  playMode: 'ONLINE_ROOM';
+}): Promise<{ success: boolean; code: string; playerId: 'p1'; room: RoomState }> {
+  // 1. Try Express backend server first
+  const serverRes = await safeFetchJson('/api/rooms/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+
+  if (serverRes && serverRes.success && serverRes.code) {
+    return serverRes;
+  }
+
+  // 2. Fallback to LocalStorage + BroadcastChannel client-side room
+  const code = generateRoomCode();
+  const room: RoomState = {
+    code,
+    status: 'SETUP',
+    format: params.format || 'T20',
+    pitch: params.pitch || 'BALANCED',
+    playMode: 'ONLINE_ROOM',
+    p1: {
+      name: params.p1Name || 'Player 1 XI',
+      squad: [],
+      battingOrder: [],
+      composition: params.p1Comp || { batsmen: 5, allRounders: 2, wicketKeepers: 1, bowlers: 3 },
+      isReady: true,
+    },
+    p2: {
+      name: 'Waiting for Player 2...',
+      squad: [],
+      battingOrder: [],
+      composition: { batsmen: 5, allRounders: 2, wicketKeepers: 1, bowlers: 3 },
+      isAi: false,
+      isReady: false,
+    },
+    globalDraftedCanonicalIds: [],
+    usedSquadIndices: [],
+    activeDraftTurn: 'p1',
+    currentSquadIndex: 0,
+    turnStartTime: Date.now(),
+    tossWinner: null,
+    tossDecision: null,
+    matchResult: null,
+    lastUpdated: Date.now(),
+  };
+
+  room.currentSquadIndex = drawUnusedSquadIndex(room.usedSquadIndices);
+  broadcastRoom(room);
+
+  return { success: true, code, playerId: 'p1', room };
+}
+
+// JOIN ROOM
+export async function joinRoom(params: {
+  code: string;
+  p2Name: string;
+  p2Comp: any;
+}): Promise<{ success: boolean; code: string; playerId: 'p2'; room: RoomState }> {
+  const cleanCode = (params.code || '').trim();
+
+  // 1. Try Express backend server first
+  const serverRes = await safeFetchJson('/api/rooms/join', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: cleanCode, p2Name: params.p2Name, p2Comp: params.p2Comp }),
+  });
+
+  if (serverRes) {
+    if (!serverRes.success) {
+      throw new Error(serverRes.error || 'Failed to join room');
+    }
+    return serverRes;
+  }
+
+  // 2. Fallback to LocalStorage client-side lookup
+  const raw = localStorage.getItem(`cricket_room_${cleanCode}`);
+  if (!raw) {
+    throw new Error('Room not found! Check the 6-digit code and try again.');
+  }
+
+  const room: RoomState = JSON.parse(raw);
+  if (room.p2.isReady && !room.p2.isAi) {
+    throw new Error('Room is already full!');
+  }
+
+  room.p2.name = params.p2Name || 'Player 2 XI';
+  if (params.p2Comp) room.p2.composition = params.p2Comp;
+  room.p2.isReady = true;
+  room.p2.isAi = false;
+  room.status = 'DRAFT';
+  room.turnStartTime = Date.now();
+  room.lastUpdated = Date.now();
+
+  broadcastRoom(room);
+
+  return { success: true, code: cleanCode, playerId: 'p2', room };
+}
+
+// GET ROOM
+export async function getRoom(code: string): Promise<RoomState | null> {
+  const serverRes = await safeFetchJson(`/api/rooms/${code}`);
+  if (serverRes && serverRes.success && serverRes.room) {
+    return serverRes.room;
+  }
+
+  const raw = localStorage.getItem(`cricket_room_${code}`);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {}
+  }
+  return null;
+}
+
+// DRAFT SELECT PLAYER
+export async function draftSelectPlayer(code: string, playerId: 'p1' | 'p2', player: any): Promise<RoomState> {
+  const serverRes = await safeFetchJson(`/api/rooms/${code}/draft/select`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ playerId, player }),
+  });
+
+  if (serverRes && serverRes.success && serverRes.room) {
+    return serverRes.room;
+  }
+
+  // Local fallback
+  const raw = localStorage.getItem(`cricket_room_${code}`);
+  if (!raw) throw new Error('Room not found');
+
+  const room: RoomState = JSON.parse(raw);
+  if (room.globalDraftedCanonicalIds.includes(player.canonicalId)) {
+    throw new Error(`${player.name} has already been drafted!`);
+  }
+
+  room.globalDraftedCanonicalIds.push(player.canonicalId);
+
+  if (playerId === 'p1') {
+    room.p1.squad.push(player);
+    room.p1.battingOrder.push(player);
+  } else {
+    room.p2.squad.push(player);
+    room.p2.battingOrder.push(player);
+  }
+
+  const p1Len = room.p1.squad.length;
+  const p2Len = room.p2.squad.length;
+
+  if (p1Len === 11 && p2Len === 11) {
+    room.status = 'SUMMARY';
+  } else {
+    if (playerId === 'p1' && p2Len < 11) {
+      room.activeDraftTurn = 'p2';
+    } else if (playerId === 'p2' && p1Len < 11) {
+      room.activeDraftTurn = 'p1';
+    } else if (p1Len < 11) {
+      room.activeDraftTurn = 'p1';
+    } else if (p2Len < 11) {
+      room.activeDraftTurn = 'p2';
+    }
+
+    room.currentSquadIndex = drawUnusedSquadIndex(room.usedSquadIndices);
+    room.turnStartTime = Date.now();
+  }
+
+  room.lastUpdated = Date.now();
+  broadcastRoom(room);
+  return room;
+}
+
+// UPDATE ROOM STATE
+export async function updateRoomState(code: string, updateData: Partial<RoomState>): Promise<RoomState | null> {
+  const serverRes = await safeFetchJson(`/api/rooms/${code}/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updateData),
+  });
+
+  if (serverRes && serverRes.success && serverRes.room) {
+    return serverRes.room;
+  }
+
+  const raw = localStorage.getItem(`cricket_room_${code}`);
+  if (!raw) return null;
+
+  const room: RoomState = JSON.parse(raw);
+  Object.assign(room, updateData);
+  room.lastUpdated = Date.now();
+
+  broadcastRoom(room);
+  return room;
+}

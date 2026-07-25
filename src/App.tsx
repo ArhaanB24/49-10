@@ -14,6 +14,15 @@ import { TeamSummaryStep } from './components/TeamSummaryStep';
 import { SimulationStep } from './components/SimulationStep';
 import { ScorecardModal } from './components/ScorecardModal';
 import { HelpModal } from './components/HelpModal';
+import {
+  createRoom,
+  joinRoom,
+  getRoom,
+  draftSelectPlayer,
+  updateRoomState,
+  subscribeToRoom,
+  RoomState,
+} from './services/roomService';
 
 export const App: React.FC = () => {
   const [stage, setStage] = useState<AppStage>('SETUP');
@@ -64,67 +73,71 @@ export const App: React.FC = () => {
     fetchSessionState();
   }, []);
 
-  // Poll room state when roomCode is active
+  // Poll & subscribe to room state when roomCode is active
   useEffect(() => {
     if (!roomCode) return;
 
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/rooms/${roomCode}`);
-        const data = await res.json();
-        if (data.success && data.room) {
-          const r = data.room;
+    const applyRoomState = (r: RoomState) => {
+      setStage(r.status);
+      if (r.format) setFormat(r.format);
+      if (r.pitch) setPitch(r.pitch);
 
-          setStage(r.status);
-          if (r.format) setFormat(r.format);
-          if (r.pitch) setPitch(r.pitch);
-
-          if (r.p1) {
-            setP1Team((prev) => ({
-              ...prev,
-              name: r.p1.name || prev.name,
-              composition: r.p1.composition || prev.composition,
-              squad: r.p1.squad || [],
-              battingOrder: r.p1.battingOrder.length ? r.p1.battingOrder : r.p1.squad,
-            }));
-          }
-
-          if (r.p2) {
-            setP2Team((prev) => ({
-              ...prev,
-              name: r.p2.name || prev.name,
-              isAi: r.p2.isAi,
-              composition: r.p2.composition || prev.composition,
-              squad: r.p2.squad || [],
-              battingOrder: r.p2.battingOrder.length ? r.p2.battingOrder : r.p2.squad,
-            }));
-          }
-
-          if (r.globalDraftedCanonicalIds) {
-            setGlobalDraftedCanonicalIds(new Set(r.globalDraftedCanonicalIds));
-          }
-
-          if (r.activeDraftTurn) setServerActiveTurn(r.activeDraftTurn);
-          if (r.currentSquadIndex !== undefined) setServerSquadIndex(r.currentSquadIndex);
-          if (r.turnStartTime) setServerTurnStartTime(r.turnStartTime);
-          if (r.tossWinner) setTossWinner(r.tossWinner);
-          if (r.tossDecision) setTossDecision(r.tossDecision);
-          if (r.matchResult) setMatchResult(r.matchResult);
-        }
-      } catch (e) {
-        // Silent polling fail fallback
+      if (r.p1) {
+        setP1Team((prev) => ({
+          ...prev,
+          name: r.p1.name || prev.name,
+          composition: r.p1.composition || prev.composition,
+          squad: r.p1.squad || [],
+          battingOrder: r.p1.battingOrder?.length ? r.p1.battingOrder : r.p1.squad || [],
+        }));
       }
+
+      if (r.p2) {
+        setP2Team((prev) => ({
+          ...prev,
+          name: r.p2.name || prev.name,
+          isAi: r.p2.isAi,
+          composition: r.p2.composition || prev.composition,
+          squad: r.p2.squad || [],
+          battingOrder: r.p2.battingOrder?.length ? r.p2.battingOrder : r.p2.squad || [],
+        }));
+      }
+
+      if (r.globalDraftedCanonicalIds) {
+        setGlobalDraftedCanonicalIds(new Set(r.globalDraftedCanonicalIds));
+      }
+
+      if (r.activeDraftTurn) setServerActiveTurn(r.activeDraftTurn);
+      if (r.currentSquadIndex !== undefined) setServerSquadIndex(r.currentSquadIndex);
+      if (r.turnStartTime) setServerTurnStartTime(r.turnStartTime);
+      if (r.tossWinner) setTossWinner(r.tossWinner);
+      if (r.tossDecision) setTossDecision(r.tossDecision);
+      if (r.matchResult) setMatchResult(r.matchResult);
+    };
+
+    // Listen to real-time BroadcastChannel & storage events
+    const unsubscribe = subscribeToRoom(roomCode, applyRoomState);
+
+    // Also poll room state every 1 second
+    const interval = setInterval(async () => {
+      const r = await getRoom(roomCode);
+      if (r) applyRoomState(r);
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
   }, [roomCode]);
 
   const fetchSessionState = async () => {
     try {
       const res = await fetch('/api/draft/session');
-      const data = await res.json();
-      if (data.draftedCanonicalIds) {
-        setGlobalDraftedCanonicalIds(new Set(data.draftedCanonicalIds));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        if (data.draftedCanonicalIds) {
+          setGlobalDraftedCanonicalIds(new Set(data.draftedCanonicalIds));
+        }
       }
     } catch {
       // Fallback local memory
@@ -139,21 +152,16 @@ export const App: React.FC = () => {
     selectedPitch: PitchType
   ) => {
     try {
-      const res = await fetch('/api/rooms/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          p1Name,
-          p1Comp,
-          format: selectedFormat,
-          pitch: selectedPitch,
-          playMode: 'ONLINE_ROOM',
-        }),
+      const res = await createRoom({
+        p1Name,
+        p1Comp,
+        format: selectedFormat,
+        pitch: selectedPitch,
+        playMode: 'ONLINE_ROOM',
       });
 
-      const data = await res.json();
-      if (data.success && data.code) {
-        setRoomCode(data.code);
+      if (res.success && res.code) {
+        setRoomCode(res.code);
         setMyPlayerRole('p1');
         setFormat(selectedFormat);
         setPitch(selectedPitch);
@@ -176,10 +184,10 @@ export const App: React.FC = () => {
         });
         setStage('SETUP');
       } else {
-        alert(data.error || 'Failed to create room.');
+        alert('Failed to create room.');
       }
     } catch (err: any) {
-      alert('Network error creating room.');
+      alert(err?.message || 'Error creating room.');
     }
   };
 
@@ -189,27 +197,18 @@ export const App: React.FC = () => {
     p2Name: string,
     p2Comp: any
   ) => {
-    const res = await fetch('/api/rooms/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code,
-        p2Name,
-        p2Comp,
-      }),
+    const res = await joinRoom({
+      code,
+      p2Name,
+      p2Comp,
     });
 
-    const data = await res.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Failed to join room');
-    }
-
-    setRoomCode(data.code);
+    setRoomCode(res.code);
     setMyPlayerRole('p2');
     setIsAiMode(false);
 
-    if (data.room) {
-      const r = data.room;
+    if (res.room) {
+      const r = res.room;
       setStage(r.status);
       setFormat(r.format || 'T20');
       setPitch(r.pitch || 'BALANCED');
@@ -274,21 +273,7 @@ export const App: React.FC = () => {
   const handleSelectPlayer = async (player: Player, activePlayerId: 'p1' | 'p2') => {
     if (roomCode) {
       try {
-        const res = await fetch(`/api/rooms/${roomCode}/draft/select`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            playerId: myPlayerRole || activePlayerId,
-            player,
-          }),
-        });
-        const data = await res.json();
-        if (!data.success) {
-          alert(data.error || 'Player unavailable');
-          return;
-        }
-
-        const r = data.room;
+        const r = await draftSelectPlayer(roomCode, myPlayerRole || activePlayerId, player);
         if (r) {
           setStage(r.status);
           setP1Team((prev) => ({ ...prev, squad: r.p1.squad, battingOrder: r.p1.battingOrder }));
@@ -298,8 +283,8 @@ export const App: React.FC = () => {
           setServerSquadIndex(r.currentSquadIndex);
           setServerTurnStartTime(r.turnStartTime);
         }
-      } catch (err) {
-        alert('Failed to submit pick to room');
+      } catch (err: any) {
+        alert(err?.message || 'Failed to submit pick to room');
       }
       return;
     }
@@ -315,14 +300,18 @@ export const App: React.FC = () => {
         }),
       });
 
-      const data = await res.json();
-      if (!data.success) {
-        alert(data.message || 'Player unavailable');
-        return;
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        if (!data.success) {
+          alert(data.message || 'Player unavailable');
+          return;
+        }
+        setGlobalDraftedCanonicalIds(new Set(data.draftedCanonicalIds));
+      } else {
+        const newCanonicalSet = new Set(globalDraftedCanonicalIds);
+        newCanonicalSet.add(player.canonicalId);
+        setGlobalDraftedCanonicalIds(newCanonicalSet);
       }
-
-      // Update client session
-      setGlobalDraftedCanonicalIds(new Set(data.draftedCanonicalIds));
 
       if (activePlayerId === 'p1') {
         const updatedSquad = [...p1Team.squad, player];
@@ -366,11 +355,7 @@ export const App: React.FC = () => {
   // Complete Draft -> Move to Summary
   const handleCompleteDraft = async () => {
     if (roomCode) {
-      await fetch(`/api/rooms/${roomCode}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'SUMMARY' }),
-      });
+      await updateRoomState(roomCode, { status: 'SUMMARY' });
     }
     setStage('SUMMARY');
   };
@@ -381,14 +366,10 @@ export const App: React.FC = () => {
     setTossDecision(decision);
 
     if (roomCode) {
-      await fetch(`/api/rooms/${roomCode}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'SIMULATION',
-          tossWinner: winner,
-          tossDecision: decision,
-        }),
+      await updateRoomState(roomCode, {
+        status: 'SIMULATION',
+        tossWinner: winner,
+        tossDecision: decision,
       });
     }
     setStage('SIMULATION');
@@ -398,13 +379,9 @@ export const App: React.FC = () => {
   const handleSimulationComplete = async (result: MatchSimulationResult) => {
     setMatchResult(result);
     if (roomCode) {
-      await fetch(`/api/rooms/${roomCode}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'SCORECARD',
-          matchResult: result,
-        }),
+      await updateRoomState(roomCode, {
+        status: 'SCORECARD',
+        matchResult: result,
       });
     }
     setStage('SCORECARD');
