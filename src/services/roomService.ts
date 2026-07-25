@@ -108,7 +108,7 @@ function broadcastRoom(room: RoomState) {
 }
 
 // Cloud Key-Value Store fallback for cross-device sync when Express server is not reachable (e.g. static hosts like Vercel)
-const CLOUD_APP_ID = 'cricket_fantasy_v2';
+const CLOUD_APP_ID = 'cricket_fantasy_v2_rooms';
 
 function encodeRoomData(room: RoomState): string {
   try {
@@ -121,28 +121,42 @@ function encodeRoomData(room: RoomState): string {
 
 function decodeRoomData(str: string): RoomState | null {
   try {
-    let cleanStr = str.trim().replace(/^"|"$/g, '');
-    if (!cleanStr || cleanStr === 'null' || cleanStr === '""') return null;
+    if (!str) return null;
+    let cleanStr = str.trim();
+    if (cleanStr.startsWith('"') && cleanStr.endsWith('"')) {
+      cleanStr = cleanStr.slice(1, -1);
+    }
+    cleanStr = cleanStr.trim();
+    if (!cleanStr || cleanStr === 'null' || cleanStr === '""' || cleanStr === 'Value not found') return null;
+
     let json: string;
     try {
       json = decodeURIComponent(atob(cleanStr));
     } catch {
-      json = decodeURIComponent(cleanStr);
+      try {
+        json = decodeURIComponent(cleanStr);
+      } catch {
+        json = cleanStr;
+      }
     }
     const room = JSON.parse(json);
     if (room && room.code) return room;
-  } catch {}
+  } catch (err) {
+    console.error('[RoomService] decodeRoomData failed:', err);
+  }
   return null;
 }
 
 async function syncRoomToCloud(room: RoomState): Promise<void> {
   try {
+    console.log(`[RoomService] Syncing room ${room.code} to Cloud KV Store...`);
     const val = encodeRoomData(room);
-    await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_ID}/${room.code}/${val}`, {
+    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_ID}/${room.code}/${val}`, {
       method: 'POST',
     });
+    console.log(`[RoomService] Cloud KV Sync response for ${room.code}: HTTP ${res.status}`);
   } catch (err) {
-    // Silent catch
+    console.error(`[RoomService] Error syncing room ${room.code} to Cloud KV Store:`, err);
   }
 }
 
@@ -150,13 +164,23 @@ async function fetchRoomFromCloud(code: string): Promise<RoomState | null> {
   try {
     const cleanCode = (code || '').trim().toUpperCase();
     if (!cleanCode) return null;
+    console.log(`[RoomService] Fetching room ${cleanCode} from Cloud KV Store...`);
     const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_ID}/${cleanCode}`);
     if (res.ok) {
       const text = await res.text();
-      return decodeRoomData(text);
+      console.log(`[RoomService] Raw Cloud KV response length for ${cleanCode}: ${text?.length || 0}`);
+      const decoded = decodeRoomData(text);
+      if (decoded) {
+        console.log(`[RoomService] Successfully decoded room ${cleanCode} from Cloud KV Store:`, decoded.status);
+      } else {
+        console.warn(`[RoomService] Could not decode Cloud KV response for room ${cleanCode}`);
+      }
+      return decoded;
+    } else {
+      console.warn(`[RoomService] Cloud KV Store fetch failed with HTTP ${res.status} for ${cleanCode}`);
     }
   } catch (err) {
-    // Silent catch
+    console.error(`[RoomService] Error fetching room ${code} from Cloud KV Store:`, err);
   }
   return null;
 }
@@ -192,6 +216,8 @@ export async function createRoom(params: {
   pitch: string;
   playMode: 'ONLINE_ROOM';
 }): Promise<{ success: boolean; code: string; playerId: 'p1'; room: RoomState }> {
+  console.log('[RoomService] Creating room with params:', params);
+
   // 1. Try Express backend server first
   const serverRes = await safeFetchJson('/api/rooms/create', {
     method: 'POST',
@@ -200,11 +226,13 @@ export async function createRoom(params: {
   });
 
   if (serverRes && serverRes.success && serverRes.code) {
+    console.log('[RoomService] Server created room successfully code:', serverRes.code);
     broadcastRoom(serverRes.room);
     syncRoomToCloud(serverRes.room);
     return serverRes;
   }
 
+  console.warn('[RoomService] Server create failed or unreachable, creating fallback room locally');
   // 2. Fallback to LocalStorage + Cloud KV Store + BroadcastChannel client-side room
   const code = generateRoomCode();
   const room: RoomState = {
@@ -253,6 +281,7 @@ export async function joinRoom(params: {
   p2Comp: any;
 }): Promise<{ success: boolean; code: string; playerId: 'p2'; room: RoomState }> {
   const cleanCode = (params.code || '').trim().toUpperCase();
+  console.log(`[RoomService] Joining room code: "${cleanCode}" for P2: "${params.p2Name}"`);
 
   // 1. Try Express backend server first
   const serverRes = await safeFetchJson('/api/rooms/join', {
@@ -263,26 +292,34 @@ export async function joinRoom(params: {
 
   if (serverRes) {
     if (serverRes.success && serverRes.room) {
+      console.log(`[RoomService] Express backend joinRoom succeeded for ${cleanCode}`);
       broadcastRoom(serverRes.room);
       syncRoomToCloud(serverRes.room);
       return serverRes;
     }
+    console.warn(`[RoomService] Express backend joinRoom returned non-success:`, serverRes);
     // Only throw non-404 errors (like "Room is already full!")
     if (serverRes.error && serverRes.status !== 404 && !serverRes._httpError) {
       throw new Error(serverRes.error);
     }
+  } else {
+    console.warn(`[RoomService] Express backend joinRoom returned null/non-JSON response`);
   }
 
   // 2. Try getting room from LocalStorage or Cloud KV Store
+  console.log(`[RoomService] Falling back to getRoom client-side for code: ${cleanCode}`);
   let room = await getRoom(cleanCode);
   if (!room) {
+    console.error(`[RoomService] Room ${cleanCode} NOT FOUND anywhere!`);
     throw new Error('Room not found! Check the 6-digit code and try again.');
   }
 
   if (room.p2.isReady && !room.p2.isAi) {
+    console.warn(`[RoomService] Room ${cleanCode} is already full!`);
     throw new Error('Room is already full!');
   }
 
+  console.log(`[RoomService] Found room ${cleanCode} via fallback! Updating P2 state...`);
   room.p2.name = params.p2Name || 'Player 2 XI';
   if (params.p2Comp) room.p2.composition = params.p2Comp;
   room.p2.isReady = true;
@@ -307,9 +344,12 @@ export async function getRoom(code: string): Promise<RoomState | null> {
   const cleanCode = (code || '').trim().toUpperCase();
   if (!cleanCode) return null;
 
+  console.log(`[RoomService] getRoom requested for: "${cleanCode}"`);
+
   // 1. Try Express backend
   const serverRes = await safeFetchJson(`/api/rooms/${cleanCode}`);
   if (serverRes && serverRes.success && serverRes.room) {
+    console.log(`[RoomService] Room ${cleanCode} retrieved from Express server`);
     return serverRes.room;
   }
 
@@ -319,6 +359,7 @@ export async function getRoom(code: string): Promise<RoomState | null> {
   if (raw) {
     try {
       localRoom = JSON.parse(raw);
+      console.log(`[RoomService] Room ${cleanCode} found in LocalStorage`);
     } catch {}
   }
 
@@ -326,15 +367,24 @@ export async function getRoom(code: string): Promise<RoomState | null> {
   const cloudRoom = await fetchRoomFromCloud(cleanCode);
 
   if (cloudRoom && localRoom) {
-    return (cloudRoom.lastUpdated || 0) >= (localRoom.lastUpdated || 0) ? cloudRoom : localRoom;
+    const newest = (cloudRoom.lastUpdated || 0) >= (localRoom.lastUpdated || 0) ? cloudRoom : localRoom;
+    console.log(`[RoomService] Returning newest room for ${cleanCode} (cloud ts: ${cloudRoom.lastUpdated}, local ts: ${localRoom.lastUpdated})`);
+    return newest;
   }
 
   if (cloudRoom) {
+    console.log(`[RoomService] Room ${cleanCode} retrieved from Cloud KV Store`);
     localStorage.setItem(`cricket_room_${cleanCode}`, JSON.stringify(cloudRoom));
     return cloudRoom;
   }
 
-  return localRoom;
+  if (localRoom) {
+    console.log(`[RoomService] Room ${cleanCode} retrieved from LocalStorage`);
+    return localRoom;
+  }
+
+  console.warn(`[RoomService] Room ${cleanCode} not found in Express server, LocalStorage, or Cloud KV Store`);
+  return null;
 }
 
 // DRAFT SELECT PLAYER
