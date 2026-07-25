@@ -267,7 +267,8 @@ export async function joinRoom(params: {
       syncRoomToCloud(serverRes.room);
       return serverRes;
     }
-    if (serverRes.error) {
+    // Only throw non-404 errors (like "Room is already full!")
+    if (serverRes.error && serverRes.status !== 404 && !serverRes._httpError) {
       throw new Error(serverRes.error);
     }
   }
@@ -292,6 +293,11 @@ export async function joinRoom(params: {
 
   broadcastRoom(room);
   syncRoomToCloud(room);
+  safeFetchJson(`/api/rooms/${cleanCode}/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(room),
+  }).catch(() => {});
 
   return { success: true, code: cleanCode, playerId: 'p2', room };
 }

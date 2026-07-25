@@ -53,6 +53,77 @@ interface RoomState {
   lastUpdated: number;
 }
 
+// Cloud Key-Value Store fallback for cross-device room persistence
+const CLOUD_APP_ID = 'cricket_fantasy_v2_rooms';
+
+function encodeRoomData(room: RoomState): string {
+  try {
+    const json = JSON.stringify(room);
+    return Buffer.from(encodeURIComponent(json)).toString('base64');
+  } catch {
+    return encodeURIComponent(JSON.stringify(room));
+  }
+}
+
+function decodeRoomData(str: string): RoomState | null {
+  try {
+    let cleanStr = str.trim().replace(/^"|"$/g, '');
+    if (!cleanStr || cleanStr === 'null' || cleanStr === '""') return null;
+    let json: string;
+    try {
+      json = decodeURIComponent(Buffer.from(cleanStr, 'base64').toString('utf-8'));
+    } catch {
+      json = decodeURIComponent(cleanStr);
+    }
+    const room = JSON.parse(json);
+    if (room && room.code) return room;
+  } catch {}
+  return null;
+}
+
+async function syncRoomToCloud(room: RoomState): Promise<void> {
+  try {
+    const val = encodeRoomData(room);
+    await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_ID}/${room.code}/${val}`, {
+      method: 'POST',
+    });
+  } catch (err) {
+    console.error('Cloud sync error:', err);
+  }
+}
+
+async function fetchRoomFromCloud(code: string): Promise<RoomState | null> {
+  try {
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode) return null;
+    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_ID}/${cleanCode}`);
+    if (res.ok) {
+      const text = await res.text();
+      return decodeRoomData(text);
+    }
+  } catch (err) {
+    console.error('Cloud fetch error:', err);
+  }
+  return null;
+}
+
+async function getOrFetchRoom(code: string): Promise<RoomState | null> {
+  const cleanCode = (code || '').trim().toUpperCase();
+  if (!cleanCode) return null;
+
+  let room = rooms.get(cleanCode);
+  if (room) return room;
+
+  room = await fetchRoomFromCloud(cleanCode);
+  if (room) {
+    rooms.set(cleanCode, room);
+    saveRoomsToDisk();
+    return room;
+  }
+
+  return null;
+}
+
 // Load persistent rooms from disk
 function loadRoomsFromDisk(): Map<string, RoomState> {
   const map = new Map<string, RoomState>();
@@ -182,14 +253,15 @@ app.post("/api/rooms/create", (req, res) => {
 
   rooms.set(code, room);
   saveRoomsToDisk();
+  syncRoomToCloud(room);
   res.json({ success: true, code, playerId: 'p1', room });
 });
 
 // API: Join an existing room with room code
-app.post("/api/rooms/join", (req, res) => {
+app.post("/api/rooms/join", async (req, res) => {
   const { code, p2Name, p2Comp } = req.body;
   const cleanCode = (code || '').trim().toUpperCase();
-  const room = rooms.get(cleanCode);
+  const room = await getOrFetchRoom(cleanCode);
 
   if (!room) {
     return res.status(404).json({ error: "Room not found! Check the 6-digit code and try again." });
@@ -208,13 +280,14 @@ app.post("/api/rooms/join", (req, res) => {
   room.lastUpdated = Date.now();
 
   saveRoomsToDisk();
+  syncRoomToCloud(room);
   res.json({ success: true, code: cleanCode, playerId: 'p2', room });
 });
 
 // API: Get room state by code (polling endpoint)
-app.get("/api/rooms/:code", (req, res) => {
+app.get("/api/rooms/:code", async (req, res) => {
   const cleanCode = (req.params.code || '').trim().toUpperCase();
-  const room = rooms.get(cleanCode);
+  const room = await getOrFetchRoom(cleanCode);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -222,9 +295,9 @@ app.get("/api/rooms/:code", (req, res) => {
 });
 
 // API: Update room general state
-app.post("/api/rooms/:code/update", (req, res) => {
+app.post("/api/rooms/:code/update", async (req, res) => {
   const cleanCode = (req.params.code || '').trim().toUpperCase();
-  const room = rooms.get(cleanCode);
+  const room = await getOrFetchRoom(cleanCode);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -259,13 +332,14 @@ app.post("/api/rooms/:code/update", (req, res) => {
 
   room.lastUpdated = Date.now();
   saveRoomsToDisk();
+  syncRoomToCloud(room);
   res.json({ success: true, room });
 });
 
 // API: Draft a player in a room
-app.post("/api/rooms/:code/draft/select", (req, res) => {
+app.post("/api/rooms/:code/draft/select", async (req, res) => {
   const cleanCode = (req.params.code || '').trim().toUpperCase();
-  const room = rooms.get(cleanCode);
+  const room = await getOrFetchRoom(cleanCode);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -316,6 +390,7 @@ app.post("/api/rooms/:code/draft/select", (req, res) => {
 
   room.lastUpdated = Date.now();
   saveRoomsToDisk();
+  syncRoomToCloud(room);
   res.json({ success: true, room });
 });
 
