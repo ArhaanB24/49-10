@@ -452,27 +452,53 @@ export const SetupStep: React.FC<SetupStepProps> = ({
           </div>
 
           {/* Team Names */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Player 1 Team Name</label>
-              <input
-                type="text"
-                value={p1Name}
-                onChange={(e) => setP1Name(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
-                {playMode === 'VS_AI' ? 'AI Team Name' : 'Player 2 Team Name'}
-              </label>
-              <input
-                type="text"
-                value={p2Name}
-                onChange={(e) => setP2Name(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
-              />
-            </div>
+          <div className="pt-2">
+            {playMode === 'ONLINE_ROOM' ? (
+              roomSubTab === 'create' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Your Team Name (Host / P1)</label>
+                  <input
+                    type="text"
+                    value={p1Name}
+                    onChange={(e) => setP1Name(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Your Team Name (Player 2)</label>
+                  <input
+                    type="text"
+                    value={p2Name}
+                    onChange={(e) => setP2Name(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                  />
+                </div>
+              )
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Player 1 Team Name</label>
+                  <input
+                    type="text"
+                    value={p1Name}
+                    onChange={(e) => setP1Name(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    {playMode === 'VS_AI' ? 'AI Team Name' : 'Player 2 Team Name'}
+                  </label>
+                  <input
+                    type="text"
+                    value={p2Name}
+                    onChange={(e) => setP2Name(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -481,178 +507,185 @@ export const SetupStep: React.FC<SetupStepProps> = ({
           <div className="space-y-6">
             <div className="flex items-center gap-2 text-base font-bold text-slate-900 pb-3 border-b border-slate-200">
               <Users className="w-5 h-5 text-slate-700" />
-              <span>2. 11-Player Squad Composition</span>
+              <span>
+                2. 11-Player Squad Composition{' '}
+                {playMode === 'ONLINE_ROOM' && (roomSubTab === 'create' ? '(Your Team)' : '(Your Team)')}
+              </span>
             </div>
 
-            {/* Player 1 Composition Config */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-sm text-slate-900">{p1Name}</span>
-                <div className="flex items-center gap-1.5 text-xs font-bold">
-                  <span className="text-slate-500">Total:</span>
-                  <span className={`px-2 py-0.5 rounded ${isP1Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
-                    {p1Total} / 11
+            {/* Player 1 Composition Config (rendered if not ONLINE_ROOM, or if ONLINE_ROOM create) */}
+            {(playMode !== 'ONLINE_ROOM' || roomSubTab === 'create') && (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-slate-900">{p1Name}</span>
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                    <span className="text-slate-500">Total:</span>
+                    <span className={`px-2 py-0.5 rounded ${isP1Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
+                      {p1Total} / 11
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="text-slate-500 font-medium">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('p1', 'balanced')}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
+                  >
+                    Balanced (5-2-1-3)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('p1', 'batting')}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
+                  >
+                    Bat Heavy (6-1-1-3)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('p1', 'bowling')}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
+                  >
+                    Bowl Heavy (4-2-1-4)
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                  <div>
+                    <label className="text-slate-500 block mb-1">Batsmen</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="8"
+                      value={p1Comp.batsmen}
+                      onChange={(e) => setP1Comp({ ...p1Comp, batsmen: parseInt(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-1">All-rounders</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="6"
+                      value={p1Comp.allRounders}
+                      onChange={(e) => setP1Comp({ ...p1Comp, allRounders: parseInt(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-1">Wicketkeeper</label>
+                    <input
+                      type="number"
+                      value={1}
+                      disabled
+                      className="w-full px-2 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed"
+                    />
+                    <span className="text-[9px] text-slate-500 font-semibold">1 Compulsory</span>
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-1">Bowlers</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="7"
+                      value={p1Comp.bowlers}
+                      onChange={(e) => setP1Comp({ ...p1Comp, bowlers: parseInt(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Player 2 Composition Config (rendered if not ONLINE_ROOM, or if ONLINE_ROOM join) */}
+            {(playMode !== 'ONLINE_ROOM' || roomSubTab === 'join') && (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-slate-900">
+                    {playMode === 'VS_AI' ? `${p2Name} (AI)` : p2Name}
                   </span>
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                    <span className="text-slate-500">Total:</span>
+                    <span className={`px-2 py-0.5 rounded ${isP2Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
+                      {p2Total} / 11
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="text-slate-500 font-medium">Presets:</span>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('p1', 'balanced')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                >
-                  Balanced (5-2-1-3)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('p1', 'batting')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                >
-                  Bat Heavy (6-1-1-3)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('p1', 'bowling')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                >
-                  Bowl Heavy (4-2-1-4)
-                </button>
-              </div>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="text-slate-500 font-medium">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('p2', 'balanced')}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
+                  >
+                    Balanced (5-2-1-3)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('p2', 'batting')}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
+                  >
+                    Bat Heavy (6-1-1-3)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('p2', 'bowling')}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
+                  >
+                    Bowl Heavy (4-2-1-4)
+                  </button>
+                </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
-                <div>
-                  <label className="text-slate-500 block mb-1">Batsmen</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="8"
-                    value={p1Comp.batsmen}
-                    onChange={(e) => setP1Comp({ ...p1Comp, batsmen: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">All-rounders</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="6"
-                    value={p1Comp.allRounders}
-                    onChange={(e) => setP1Comp({ ...p1Comp, allRounders: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">Wicketkeeper</label>
-                  <input
-                    type="number"
-                    value={1}
-                    disabled
-                    className="w-full px-2 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed"
-                  />
-                  <span className="text-[9px] text-slate-500 font-semibold">1 Compulsory</span>
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">Bowlers</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="7"
-                    value={p1Comp.bowlers}
-                    onChange={(e) => setP1Comp({ ...p1Comp, bowlers: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Player 2 Composition Config */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-sm text-slate-900">
-                  {playMode === 'VS_AI' ? `${p2Name} (AI)` : p2Name}
-                </span>
-                <div className="flex items-center gap-1.5 text-xs font-bold">
-                  <span className="text-slate-500">Total:</span>
-                  <span className={`px-2 py-0.5 rounded ${isP2Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
-                    {p2Total} / 11
-                  </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                  <div>
+                    <label className="text-slate-500 block mb-1">Batsmen</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="8"
+                      value={p2Comp.batsmen}
+                      onChange={(e) => setP2Comp({ ...p2Comp, batsmen: parseInt(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-1">All-rounders</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="6"
+                      value={p2Comp.allRounders}
+                      onChange={(e) => setP2Comp({ ...p2Comp, allRounders: parseInt(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-1">Wicketkeeper</label>
+                    <input
+                      type="number"
+                      value={1}
+                      disabled
+                      className="w-full px-2 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed"
+                    />
+                    <span className="text-[9px] text-slate-500 font-semibold">1 Compulsory</span>
+                  </div>
+                  <div>
+                    <label className="text-slate-500 block mb-1">Bowlers</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="7"
+                      value={p2Comp.bowlers}
+                      onChange={(e) => setP2Comp({ ...p2Comp, bowlers: parseInt(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
+                    />
+                  </div>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="text-slate-500 font-medium">Presets:</span>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('p2', 'balanced')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                >
-                  Balanced (5-2-1-3)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('p2', 'batting')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                >
-                  Bat Heavy (6-1-1-3)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('p2', 'bowling')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                >
-                  Bowl Heavy (4-2-1-4)
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
-                <div>
-                  <label className="text-slate-500 block mb-1">Batsmen</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="8"
-                    value={p2Comp.batsmen}
-                    onChange={(e) => setP2Comp({ ...p2Comp, batsmen: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">All-rounders</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="6"
-                    value={p2Comp.allRounders}
-                    onChange={(e) => setP2Comp({ ...p2Comp, allRounders: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">Wicketkeeper</label>
-                  <input
-                    type="number"
-                    value={1}
-                    disabled
-                    className="w-full px-2 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed"
-                  />
-                  <span className="text-[9px] text-slate-500 font-semibold">1 Compulsory</span>
-                </div>
-                <div>
-                  <label className="text-slate-500 block mb-1">Bowlers</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="7"
-                    value={p2Comp.bowlers}
-                    onChange={(e) => setP2Comp({ ...p2Comp, bowlers: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Submit Button */}
