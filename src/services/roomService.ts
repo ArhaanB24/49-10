@@ -1,6 +1,8 @@
 // Dual-mode Room Service (Express Server API + LocalStorage/BroadcastChannel Fallback)
 // Ensures multiplayer rooms work seamlessly on Cloud Run, Vercel, static preview iFrames, and multi-tab windows without network errors.
 
+import { optimizeBattingOrder } from './battingOrderService';
+
 export interface RoomState {
   code: string;
   status: 'SETUP' | 'DRAFT' | 'SUMMARY' | 'SIMULATION' | 'SCORECARD';
@@ -109,12 +111,15 @@ function broadcastRoom(room: RoomState) {
 async function safeFetchJson(url: string, options?: RequestInit): Promise<any | null> {
   try {
     const res = await fetch(url, options);
-    if (!res.ok) return null;
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const text = await res.text();
       try {
-        return JSON.parse(text);
+        const data = JSON.parse(text);
+        if (!res.ok) {
+          return { success: false, _httpError: true, status: res.status, ...data };
+        }
+        return data;
       } catch {
         return null;
       }
@@ -141,6 +146,7 @@ export async function createRoom(params: {
   });
 
   if (serverRes && serverRes.success && serverRes.code) {
+    broadcastRoom(serverRes.room);
     return serverRes;
   }
 
@@ -200,10 +206,13 @@ export async function joinRoom(params: {
   });
 
   if (serverRes) {
-    if (!serverRes.success) {
-      throw new Error(serverRes.error || 'Failed to join room');
+    if (serverRes.success && serverRes.room) {
+      broadcastRoom(serverRes.room);
+      return serverRes;
     }
-    return serverRes;
+    if (serverRes.error) {
+      throw new Error(serverRes.error);
+    }
   }
 
   // 2. Fallback to LocalStorage client-side lookup
@@ -283,10 +292,10 @@ export async function draftSelectPlayer(code: string, playerId: 'p1' | 'p2', pla
 
   if (playerId === 'p1') {
     room.p1.squad.push(player);
-    room.p1.battingOrder.push(player);
+    room.p1.battingOrder = optimizeBattingOrder(room.p1.squad);
   } else {
     room.p2.squad.push(player);
-    room.p2.battingOrder.push(player);
+    room.p2.battingOrder = optimizeBattingOrder(room.p2.squad);
   }
 
   const p1Len = room.p1.squad.length;

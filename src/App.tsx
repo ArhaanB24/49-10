@@ -23,6 +23,7 @@ import {
   subscribeToRoom,
   RoomState,
 } from './services/roomService';
+import { optimizeBattingOrder } from './services/battingOrderService';
 
 export const App: React.FC = () => {
   const [stage, setStage] = useState<AppStage>('SETUP');
@@ -318,14 +319,14 @@ export const App: React.FC = () => {
         setP1Team({
           ...p1Team,
           squad: updatedSquad,
-          battingOrder: updatedSquad,
+          battingOrder: optimizeBattingOrder(updatedSquad),
         });
       } else {
         const updatedSquad = [...p2Team.squad, player];
         setP2Team({
           ...p2Team,
           squad: updatedSquad,
-          battingOrder: updatedSquad,
+          battingOrder: optimizeBattingOrder(updatedSquad),
         });
       }
     } catch {
@@ -339,14 +340,14 @@ export const App: React.FC = () => {
         setP1Team({
           ...p1Team,
           squad: updatedSquad,
-          battingOrder: updatedSquad,
+          battingOrder: optimizeBattingOrder(updatedSquad),
         });
       } else {
         const updatedSquad = [...p2Team.squad, player];
         setP2Team({
           ...p2Team,
           squad: updatedSquad,
-          battingOrder: updatedSquad,
+          battingOrder: optimizeBattingOrder(updatedSquad),
         });
       }
     }

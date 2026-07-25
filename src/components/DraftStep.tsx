@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Player, PlayerRole, UserTeam } from '../types';
 import { ICONIC_SQUADS } from '../data/iconicSquads';
 import { PlayerCard } from './PlayerCard';
+import { FieldPitchView } from './FieldPitchView';
 import { chooseAiDraftPick } from '../services/aiDraftService';
 import { Sparkles, Bot, Clock, CheckCircle2, Users, ChevronDown, ChevronUp, Dices } from 'lucide-react';
 
@@ -57,8 +58,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     }
   }, [roomCode, serverTurnStartTime]);
 
-  // Toggle live squads drawer visibility
+  // Toggle live squads drawer visibility & view mode
   const [showLiveSquads, setShowLiveSquads] = useState<boolean>(true);
+  const [rosterViewMode, setRosterViewMode] = useState<'PITCH' | 'LIST'>('PITCH');
+  const [pitchTab, setPitchTab] = useState<'p1' | 'p2'>('p1');
 
   // Gemini AI Draft Advice state
   const [aiAdvice, setAiAdvice] = useState<string | null>(null);
@@ -375,61 +378,129 @@ export const DraftStep: React.FC<DraftStepProps> = ({
         </div>
       )}
 
-      {/* Real-time Squad Tracker (Real-time live squad view with player names) */}
+      {/* Real-time Squad Field Pitch & Roster Tracker */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
           <button
             onClick={() => setShowLiveSquads(!showLiveSquads)}
-            className="flex items-center gap-2 text-xs font-bold text-slate-900 hover:text-slate-700"
+            className="flex items-center gap-2 text-xs font-extrabold text-slate-900 hover:text-slate-700"
           >
-            <Users className="w-4 h-4 text-slate-700" />
-            <span>Real-Time Squad Rosters</span>
+            <Users className="w-4 h-4 text-emerald-600" />
+            <span>Real-Time Squad Pitch & Lineup</span>
             <span className="text-slate-500 font-medium">({p1Team.squad.length}/11 vs {p2Team.squad.length}/11)</span>
             {showLiveSquads ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
+
+          {showLiveSquads && (
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setRosterViewMode('PITCH')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    rosterViewMode === 'PITCH'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🏟️ Pitch View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRosterViewMode('LIST')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    rosterViewMode === 'LIST'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  📋 List View
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {showLiveSquads && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 text-xs">
-            {/* P1 Real-Time Roster */}
-            <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center justify-between font-bold text-slate-900 pb-1 border-b border-slate-200">
-                <span>{p1Team.name} ({p1Team.squad.length}/11)</span>
-                <span className="text-[10px] text-slate-500 uppercase">Real-Time Picks</span>
-              </div>
-              {p1Team.squad.length === 0 ? (
-                <div className="text-slate-400 italic text-[11px] py-2">No players drafted yet.</div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
-                  {p1Team.squad.map((p, idx) => (
-                    <div key={p.id} className="p-1.5 rounded bg-white border border-slate-200 flex items-center justify-between">
-                      <span className="font-bold text-slate-900 line-clamp-1">{idx + 1}. {p.name}</span>
-                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">{p.ovr} {p.role.slice(0, 3).toUpperCase()}</span>
-                    </div>
-                  ))}
+          <div className="pt-2">
+            {rosterViewMode === 'PITCH' ? (
+              <div className="space-y-3">
+                {/* Team Selector Tabs for Field View */}
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPitchTab('p1')}
+                    className={`px-4 py-1.5 rounded-xl font-bold text-xs border transition-all ${
+                      pitchTab === 'p1'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p1Team.name} ({p1Team.squad.length}/11)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPitchTab('p2')}
+                    className={`px-4 py-1.5 rounded-xl font-bold text-xs border transition-all ${
+                      pitchTab === 'p2'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p2Team.name} ({p2Team.squad.length}/11)
+                  </button>
                 </div>
-              )}
-            </div>
 
-            {/* P2 Real-Time Roster */}
-            <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center justify-between font-bold text-slate-900 pb-1 border-b border-slate-200">
-                <span>{p2Team.name} ({p2Team.squad.length}/11)</span>
-                <span className="text-[10px] text-slate-500 uppercase">Real-Time Picks</span>
+                {/* Render Field Pitch View */}
+                <FieldPitchView
+                  squad={pitchTab === 'p1' ? p1Team.squad : p2Team.squad}
+                  composition={pitchTab === 'p1' ? p1Team.composition : p2Team.composition}
+                  teamName={pitchTab === 'p1' ? p1Team.name : p2Team.name}
+                />
               </div>
-              {p2Team.squad.length === 0 ? (
-                <div className="text-slate-400 italic text-[11px] py-2">No players drafted yet.</div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
-                  {p2Team.squad.map((p, idx) => (
-                    <div key={p.id} className="p-1.5 rounded bg-white border border-slate-200 flex items-center justify-between">
-                      <span className="font-bold text-slate-900 line-clamp-1">{idx + 1}. {p.name}</span>
-                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">{p.ovr} {p.role.slice(0, 3).toUpperCase()}</span>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* P1 Real-Time Roster */}
+                <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between font-bold text-slate-900 pb-1 border-b border-slate-200">
+                    <span>{p1Team.name} ({p1Team.squad.length}/11)</span>
+                    <span className="text-[10px] text-slate-500 uppercase">Real-Time Picks</span>
+                  </div>
+                  {p1Team.squad.length === 0 ? (
+                    <div className="text-slate-400 italic text-[11px] py-2">No players drafted yet.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                      {p1Team.squad.map((p, idx) => (
+                        <div key={p.id} className="p-1.5 rounded bg-white border border-slate-200 flex items-center justify-between">
+                          <span className="font-bold text-slate-900 line-clamp-1">{idx + 1}. {p.name}</span>
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">{p.ovr} {p.role.slice(0, 3).toUpperCase()}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* P2 Real-Time Roster */}
+                <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between font-bold text-slate-900 pb-1 border-b border-slate-200">
+                    <span>{p2Team.name} ({p2Team.squad.length}/11)</span>
+                    <span className="text-[10px] text-slate-500 uppercase">Real-Time Picks</span>
+                  </div>
+                  {p2Team.squad.length === 0 ? (
+                    <div className="text-slate-400 italic text-[11px] py-2">No players drafted yet.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                      {p2Team.squad.map((p, idx) => (
+                        <div key={p.id} className="p-1.5 rounded bg-white border border-slate-200 flex items-center justify-between">
+                          <span className="font-bold text-slate-900 line-clamp-1">{idx + 1}. {p.name}</span>
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">{p.ovr} {p.role.slice(0, 3).toUpperCase()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

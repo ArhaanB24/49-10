@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { UserTeam } from '../types';
 import { calculateTeamPower } from '../services/matchEngine';
-import { Trophy, Swords, ArrowUp, ArrowDown, Play, Coins } from 'lucide-react';
+import { FieldPitchView } from './FieldPitchView';
+import { validateMovePlayer, optimizeBattingOrder } from '../services/battingOrderService';
+import { Trophy, Swords, ArrowUp, ArrowDown, Play, Coins, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface TeamSummaryStepProps {
   p1Team: UserTeam;
@@ -21,6 +23,12 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
   const p1Power = calculateTeamPower(p1Team.squad);
   const p2Power = calculateTeamPower(p2Team.squad);
 
+  // Pitch View Tab state
+  const [summaryPitchTab, setSummaryPitchTab] = useState<'p1' | 'p2'>('p1');
+
+  // Guardrail Warning Message state
+  const [guardrailNotice, setGuardrailNotice] = useState<string | null>(null);
+
   // Coin Toss State
   const [tossState, setTossState] = useState<'IDLE' | 'FLIPPING' | 'DECIDING'>('IDLE');
   const [userChoice, setUserChoice] = useState<'Heads' | 'Tails'>('Heads');
@@ -28,13 +36,21 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
   const [tossWinner, setTossWinner] = useState<'p1' | 'p2'>('p1');
   const [tossDecision, setTossDecision] = useState<'Bat' | 'Bowl'>('Bat');
 
-  // Handle Batting Order shift
+  // Handle Batting Order shift with realistic cricket guardrails
   const movePlayer = (teamId: 'p1' | 'p2', index: number, direction: 'UP' | 'DOWN') => {
+    setGuardrailNotice(null);
     const team = teamId === 'p1' ? p1Team : p2Team;
     const order = [...team.battingOrder];
     const targetIdx = direction === 'UP' ? index - 1 : index + 1;
 
     if (targetIdx < 0 || targetIdx >= order.length) return;
+
+    // Guardrail Check
+    const validation = validateMovePlayer(order, index, targetIdx);
+    if (!validation.allowed) {
+      setGuardrailNotice(validation.reason || 'Invalid position change based on cricket guardrails.');
+      return;
+    }
 
     const temp = order[index];
     order[index] = order[targetIdx];
@@ -42,6 +58,15 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
 
     if (teamId === 'p1') onUpdateP1BattingOrder(order);
     else onUpdateP2BattingOrder(order);
+  };
+
+  // Auto-optimize batting order for a team
+  const handleAutoOptimize = (teamId: 'p1' | 'p2') => {
+    setGuardrailNotice(null);
+    const team = teamId === 'p1' ? p1Team : p2Team;
+    const sorted = optimizeBattingOrder(team.squad);
+    if (teamId === 'p1') onUpdateP1BattingOrder(sorted);
+    else onUpdateP2BattingOrder(sorted);
   };
 
   // Handle Coin Flip
@@ -123,13 +148,84 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
         </div>
       </div>
 
+      {/* Field Pitch Squad Formation */}
+      <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🏟️</span>
+            <div>
+              <h3 className="font-extrabold text-base text-slate-900">Dream XI Field Formations</h3>
+              <p className="text-xs text-slate-500">Visual positioning of drafted XI on the field ground</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSummaryPitchTab('p1')}
+              className={`px-4 py-1.5 rounded-xl font-bold text-xs border transition-all ${
+                summaryPitchTab === 'p1'
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              {p1Team.name} Field
+            </button>
+            <button
+              type="button"
+              onClick={() => setSummaryPitchTab('p2')}
+              className={`px-4 py-1.5 rounded-xl font-bold text-xs border transition-all ${
+                summaryPitchTab === 'p2'
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              {p2Team.name} Field
+            </button>
+          </div>
+        </div>
+
+        <FieldPitchView
+          squad={summaryPitchTab === 'p1' ? p1Team.squad : p2Team.squad}
+          composition={summaryPitchTab === 'p1' ? p1Team.composition : p2Team.composition}
+          teamName={summaryPitchTab === 'p1' ? p1Team.name : p2Team.name}
+        />
+      </div>
+
+      {/* Guardrail Warning Banner if triggered */}
+      {guardrailNotice && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-950 text-xs font-bold flex items-center justify-between gap-3 shadow-sm animate-shake">
+          <div className="flex items-center gap-2.5">
+            <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>{guardrailNotice}</span>
+          </div>
+          <button
+            onClick={() => setGuardrailNotice(null)}
+            className="px-2 py-1 rounded bg-rose-200/80 text-rose-900 hover:bg-rose-300 transition-all text-xs font-black"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Batting Lineup Order Customizer */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* P1 Lineup */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <h4 className="font-bold text-slate-900 text-sm">{p1Team.name} Batting Order</h4>
-            <span className="text-xs text-slate-500 font-medium">11 Players</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm">{p1Team.name} Batting Order</h4>
+              <span className="text-[11px] text-slate-500 font-medium">🛡️ Guardrails Active: Bowlers bat #7–#11</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleAutoOptimize('p1')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all shadow-2xs self-start sm:self-auto"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+              <span>Auto-Align Realistic Order</span>
+            </button>
           </div>
 
           <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -143,8 +239,20 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
                     #{idx + 1}
                   </span>
                   <div>
-                    <div className="font-bold text-slate-900">{player.name}</div>
-                    <div className="text-[11px] text-slate-500">{player.role} • OVR {player.ovr}</div>
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>{player.name}</span>
+                      {idx <= 2 && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                          Top Order
+                        </span>
+                      )}
+                      {player.role === 'Bowler' && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
+                          Bowler
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-500">{player.role} • OVR {player.ovr} • Bat Avg {player.battingAvg}</div>
                   </div>
                 </div>
 
@@ -153,6 +261,7 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
                     disabled={idx === 0}
                     onClick={() => movePlayer('p1', idx, 'UP')}
                     className="p-1 rounded bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30"
+                    title="Move Up"
                   >
                     <ArrowUp className="w-3.5 h-3.5 text-slate-700" />
                   </button>
@@ -160,6 +269,7 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
                     disabled={idx === p1Team.battingOrder.length - 1}
                     onClick={() => movePlayer('p1', idx, 'DOWN')}
                     className="p-1 rounded bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30"
+                    title="Move Down"
                   >
                     <ArrowDown className="w-3.5 h-3.5 text-slate-700" />
                   </button>
@@ -171,9 +281,20 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
 
         {/* P2 Lineup */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <h4 className="font-bold text-slate-900 text-sm">{p2Team.name} Batting Order</h4>
-            <span className="text-xs text-slate-500 font-medium">11 Players</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm">{p2Team.name} Batting Order</h4>
+              <span className="text-[11px] text-slate-500 font-medium">🛡️ Guardrails Active: Bowlers bat #7–#11</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleAutoOptimize('p2')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all shadow-2xs self-start sm:self-auto"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+              <span>Auto-Align Realistic Order</span>
+            </button>
           </div>
 
           <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -187,8 +308,20 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
                     #{idx + 1}
                   </span>
                   <div>
-                    <div className="font-bold text-slate-900">{player.name}</div>
-                    <div className="text-[11px] text-slate-500">{player.role} • OVR {player.ovr}</div>
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>{player.name}</span>
+                      {idx <= 2 && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                          Top Order
+                        </span>
+                      )}
+                      {player.role === 'Bowler' && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
+                          Bowler
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-500">{player.role} • OVR {player.ovr} • Bat Avg {player.battingAvg}</div>
                   </div>
                 </div>
 
@@ -197,6 +330,7 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
                     disabled={idx === 0}
                     onClick={() => movePlayer('p2', idx, 'UP')}
                     className="p-1 rounded bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30"
+                    title="Move Up"
                   >
                     <ArrowUp className="w-3.5 h-3.5 text-slate-700" />
                   </button>
@@ -204,6 +338,7 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
                     disabled={idx === p2Team.battingOrder.length - 1}
                     onClick={() => movePlayer('p2', idx, 'DOWN')}
                     className="p-1 rounded bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30"
+                    title="Move Down"
                   >
                     <ArrowDown className="w-3.5 h-3.5 text-slate-700" />
                   </button>
