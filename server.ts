@@ -59,9 +59,10 @@ const CLOUD_APP_ID = 'cricket_fantasy_v2_rooms';
 function encodeRoomData(room: RoomState): string {
   try {
     const json = JSON.stringify(room);
-    return Buffer.from(encodeURIComponent(json)).toString('base64');
-  } catch {
-    return encodeURIComponent(JSON.stringify(room));
+    return Buffer.from(json, 'utf-8').toString('hex');
+  } catch (err) {
+    console.error('[Server] encodeRoomData error:', err);
+    return '';
   }
 }
 
@@ -75,18 +76,17 @@ function decodeRoomData(str: string): RoomState | null {
     cleanStr = cleanStr.trim();
     if (!cleanStr || cleanStr === 'null' || cleanStr === '""' || cleanStr === 'Value not found') return null;
 
-    let json: string;
-    try {
-      json = decodeURIComponent(Buffer.from(cleanStr, 'base64').toString('utf-8'));
-    } catch {
-      try {
-        json = decodeURIComponent(cleanStr);
-      } catch {
-        json = cleanStr;
-      }
+    if (/^[0-9a-fA-F]+$/.test(cleanStr) && cleanStr.length % 2 === 0) {
+      const json = Buffer.from(cleanStr, 'hex').toString('utf-8');
+      const room = JSON.parse(json);
+      if (room && room.code) return room;
     }
-    const room = JSON.parse(json);
-    if (room && room.code) return room;
+
+    try {
+      const json = decodeURIComponent(cleanStr);
+      const room = JSON.parse(json);
+      if (room && room.code) return room;
+    } catch {}
   } catch (err) {
     console.error('[Server] decodeRoomData error:', err);
   }

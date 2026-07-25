@@ -113,9 +113,11 @@ const CLOUD_APP_ID = 'cricket_fantasy_v2_rooms';
 function encodeRoomData(room: RoomState): string {
   try {
     const json = JSON.stringify(room);
-    return btoa(encodeURIComponent(json));
-  } catch {
-    return encodeURIComponent(JSON.stringify(room));
+    const bytes = new TextEncoder().encode(json);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  } catch (err) {
+    console.error('[RoomService] encodeRoomData error:', err);
+    return '';
   }
 }
 
@@ -129,18 +131,22 @@ function decodeRoomData(str: string): RoomState | null {
     cleanStr = cleanStr.trim();
     if (!cleanStr || cleanStr === 'null' || cleanStr === '""' || cleanStr === 'Value not found') return null;
 
-    let json: string;
-    try {
-      json = decodeURIComponent(atob(cleanStr));
-    } catch {
-      try {
-        json = decodeURIComponent(cleanStr);
-      } catch {
-        json = cleanStr;
+    // Check if cleanStr is pure hex string
+    if (/^[0-9a-fA-F]+$/.test(cleanStr) && cleanStr.length % 2 === 0) {
+      const bytes = new Uint8Array(cleanStr.length / 2);
+      for (let i = 0; i < cleanStr.length; i += 2) {
+        bytes[i / 2] = parseInt(cleanStr.substring(i, i + 2), 16);
       }
+      const json = new TextDecoder().decode(bytes);
+      const room = JSON.parse(json);
+      if (room && room.code) return room;
     }
-    const room = JSON.parse(json);
-    if (room && room.code) return room;
+
+    try {
+      const json = decodeURIComponent(cleanStr);
+      const room = JSON.parse(json);
+      if (room && room.code) return room;
+    } catch {}
   } catch (err) {
     console.error('[RoomService] decodeRoomData failed:', err);
   }
@@ -151,6 +157,7 @@ async function syncRoomToCloud(room: RoomState): Promise<void> {
   try {
     console.log(`[RoomService] Syncing room ${room.code} to Cloud KV Store...`);
     const val = encodeRoomData(room);
+    if (!val) return;
     const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_ID}/${room.code}/${val}`, {
       method: 'POST',
     });
@@ -228,7 +235,7 @@ export async function createRoom(params: {
   if (serverRes && serverRes.success && serverRes.code) {
     console.log('[RoomService] Server created room successfully code:', serverRes.code);
     broadcastRoom(serverRes.room);
-    syncRoomToCloud(serverRes.room);
+    await syncRoomToCloud(serverRes.room);
     return serverRes;
   }
 
@@ -269,7 +276,7 @@ export async function createRoom(params: {
 
   room.currentSquadIndex = drawUnusedSquadIndex(room.usedSquadIndices);
   broadcastRoom(room);
-  syncRoomToCloud(room);
+  await syncRoomToCloud(room);
 
   return { success: true, code, playerId: 'p1', room };
 }
@@ -294,7 +301,7 @@ export async function joinRoom(params: {
     if (serverRes.success && serverRes.room) {
       console.log(`[RoomService] Express backend joinRoom succeeded for ${cleanCode}`);
       broadcastRoom(serverRes.room);
-      syncRoomToCloud(serverRes.room);
+      await syncRoomToCloud(serverRes.room);
       return serverRes;
     }
     console.warn(`[RoomService] Express backend joinRoom returned non-success:`, serverRes);
@@ -329,7 +336,7 @@ export async function joinRoom(params: {
   room.lastUpdated = Date.now();
 
   broadcastRoom(room);
-  syncRoomToCloud(room);
+  await syncRoomToCloud(room);
   safeFetchJson(`/api/rooms/${cleanCode}/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
