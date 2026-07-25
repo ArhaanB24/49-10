@@ -69,10 +69,68 @@ export const App: React.FC = () => {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
 
-  // Sync session state from backend server on load
+  // Sync session state & parse URL room routing on load
   useEffect(() => {
     fetchSessionState();
+    checkInitialUrlRouting();
   }, []);
+
+  const checkInitialUrlRouting = async () => {
+    try {
+      const pathParts = window.location.pathname.split('/');
+      const roomIdx = pathParts.indexOf('room');
+      const codeFromPath = roomIdx !== -1 && pathParts[roomIdx + 1] ? pathParts[roomIdx + 1] : null;
+      const urlParams = new URLSearchParams(window.location.search);
+      const codeFromQuery = urlParams.get('room');
+      const targetCode = (codeFromPath || codeFromQuery || '').trim().toUpperCase();
+
+      if (targetCode && targetCode.length === 6) {
+        const r = await getRoom(targetCode);
+        if (r) {
+          setRoomCode(targetCode);
+          setStage(r.status);
+          if (r.format) setFormat(r.format);
+          if (r.pitch) setPitch(r.pitch);
+          setIsAiMode(false);
+
+          if (r.p1) {
+            setP1Team((prev) => ({
+              ...prev,
+              name: r.p1.name || prev.name,
+              composition: r.p1.composition || prev.composition,
+              squad: r.p1.squad || [],
+              battingOrder: r.p1.battingOrder?.length ? r.p1.battingOrder : r.p1.squad || [],
+            }));
+          }
+
+          if (r.p2) {
+            setP2Team((prev) => ({
+              ...prev,
+              name: r.p2.name || prev.name,
+              isAi: r.p2.isAi,
+              composition: r.p2.composition || prev.composition,
+              squad: r.p2.squad || [],
+              battingOrder: r.p2.battingOrder?.length ? r.p2.battingOrder : r.p2.squad || [],
+            }));
+          }
+
+          if (!myPlayerRole) {
+            if (!r.p2.isReady) {
+              setMyPlayerRole('p2');
+            } else {
+              setMyPlayerRole('p1');
+            }
+          }
+
+          if (window.location.pathname !== `/room/${targetCode}`) {
+            window.history.pushState({}, '', `/room/${targetCode}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to resolve room code from URL:', err);
+    }
+  };
 
   // Poll & subscribe to room state when roomCode is active
   useEffect(() => {
@@ -163,6 +221,7 @@ export const App: React.FC = () => {
 
       if (res.success && res.code) {
         setRoomCode(res.code);
+        window.history.pushState({}, '', `/room/${res.code}`);
         setMyPlayerRole('p1');
         setFormat(selectedFormat);
         setPitch(selectedPitch);
@@ -205,6 +264,7 @@ export const App: React.FC = () => {
     });
 
     setRoomCode(res.code);
+    window.history.pushState({}, '', `/room/${res.code}`);
     setMyPlayerRole('p2');
     setIsAiMode(false);
 

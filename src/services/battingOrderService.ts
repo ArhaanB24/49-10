@@ -5,12 +5,13 @@ export function getBattingTier(player: Player): number {
   const role = player.role;
   const name = (player.name || '').toLowerCase();
 
-  // Tier 1: Specialist Openers & Top Order (#1 - #3)
+  // Tier 1: Specialist Openers & Top Order (#1 - #3 / #4)
   const isKnownTopOrder =
     name.includes('kohli') ||
     name.includes('rohit') ||
     name.includes('babar') ||
     name.includes('sharma') ||
+    name.includes('iyer') ||
     name.includes('head') ||
     name.includes('warner') ||
     name.includes('gill') ||
@@ -81,35 +82,43 @@ export function validateMovePlayer(
   if (!player) return { allowed: false, reason: 'Invalid player selection' };
 
   const targetPosition = toIndex + 1; // 1-indexed (1 to 11)
+  const isMovingUp = toIndex < fromIndex;
 
-  // Guardrail 1: Pure Bowler cannot bat in Top 6
+  // Guardrail 1: Pure Bowler cannot bat in Top 6 (#1 - #6)
   if (player.role === 'Bowler' && targetPosition <= 6) {
     return {
       allowed: false,
-      reason: `Guardrail Triggered: Pure Bowlers (${player.name}) cannot bat in the Top 6! Bowlers must remain in lower order (#7–#11).`,
+      reason: `Guardrail Triggered: Pure Bowler (${player.name}) cannot bat in the Top 6! Bowlers must remain in lower order (#7–#11).`,
     };
   }
 
-  // Guardrail 2: Top-Order Specialist (e.g. Virat Kohli, Rohit Sharma) cannot bat below #5
-  const tier = getBattingTier(player);
-  if (tier === 1 && targetPosition > 5) {
-    return {
-      allowed: false,
-      reason: `Guardrail Triggered: Top-Order Specialist (${player.name}) cannot bat below position #5!`,
-    };
+  // Guardrail 2: Top-Order Specialist moving DOWN past #7
+  // Note: Upward movement is ALWAYS allowed for batsmen promoting closer to top order!
+  if (!isMovingUp) {
+    const tier = getBattingTier(player);
+    if (tier === 1 && targetPosition > 7) {
+      return {
+        allowed: false,
+        reason: `Guardrail Triggered: Top-Order Specialist (${player.name}) cannot bat below position #7!`,
+      };
+    }
   }
 
-  // Guardrail 3: Top-Order Specialist cannot be placed behind a pure bowler
-  if (tier <= 2) {
-    for (let i = 0; i < toIndex; i++) {
-      if (i === fromIndex) continue;
-      const precedingPlayer = order[i];
-      if (precedingPlayer && precedingPlayer.role === 'Bowler') {
-        return {
-          allowed: false,
-          reason: `Guardrail Triggered: ${player.name} cannot bat below bowler ${precedingPlayer.name}!`,
-        };
-      }
+  // Guardrail 3: Check resulting order - Specialist Batsman/Keeper cannot bat below a Pure Bowler
+  const newOrder = [...order];
+  const [moved] = newOrder.splice(fromIndex, 1);
+  newOrder.splice(toIndex, 0, moved);
+
+  let foundBowler = false;
+  for (let i = 0; i < newOrder.length; i++) {
+    const p = newOrder[i];
+    if (p.role === 'Bowler') {
+      foundBowler = true;
+    } else if ((p.role === 'Batsman' || p.role === 'Wicketkeeper') && foundBowler) {
+      return {
+        allowed: false,
+        reason: `Guardrail Triggered: Specialist batsman/keeper (${p.name}) cannot bat below pure bowlers!`,
+      };
     }
   }
 

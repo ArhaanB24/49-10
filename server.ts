@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { ICONIC_SQUADS } from "./src/data/iconicSquads";
+import { optimizeBattingOrder } from "./src/services/battingOrderService";
 
 dotenv.config();
 
@@ -214,10 +215,10 @@ app.post("/api/rooms/:code/draft/select", (req, res) => {
 
   if (playerId === 'p1') {
     room.p1.squad.push(player);
-    room.p1.battingOrder.push(player);
+    room.p1.battingOrder = optimizeBattingOrder(room.p1.squad);
   } else {
     room.p2.squad.push(player);
-    room.p2.battingOrder.push(player);
+    room.p2.battingOrder = optimizeBattingOrder(room.p2.squad);
   }
 
   // Switch turn if drafting isn't complete

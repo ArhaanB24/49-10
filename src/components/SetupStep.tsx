@@ -149,14 +149,14 @@ export const SetupStep: React.FC<SetupStepProps> = ({
 
   const copyShareLink = () => {
     if (!roomCode) return;
-    const shareUrl = `${window.location.origin}/?room=${roomCode}`;
+    const shareUrl = `${window.location.origin}/room/${roomCode}`;
     navigator.clipboard.writeText(shareUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
   if (roomCode && myPlayerRole === 'p1') {
-    const shareUrl = `${window.location.origin}/?room=${roomCode}`;
+    const shareUrl = `${window.location.origin}/room/${roomCode}`;
 
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 text-slate-900 space-y-8">
@@ -224,7 +224,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 text-slate-900 space-y-8">
+    <div className="max-w-3xl mx-auto px-4 py-8 text-slate-900 space-y-8">
       {/* Hero Header */}
       <div className="text-center space-y-3">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold">
@@ -234,18 +234,18 @@ export const SetupStep: React.FC<SetupStepProps> = ({
         <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
           BUILD YOUR ULTIMATE CRICKET ELEVEN
         </h2>
-        <p className="text-slate-600 max-w-2xl mx-auto text-sm">
+        <p className="text-slate-600 max-w-xl mx-auto text-sm">
           Set up match format, team compositions, and pitch conditions. Select 1 compulsory wicketkeeper, batsmen, all-rounders, and bowlers to prepare for the surprise fantasy draft.
         </p>
       </div>
 
-      {/* Main Form Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Match Settings Panel */}
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-6">
-          <div className="flex items-center gap-2 text-base font-bold text-slate-900 pb-3 border-b border-slate-200">
-            <Settings2 className="w-5 h-5 text-slate-700" />
-            <span>1. Match Format & Conditions</span>
+      {/* Main Single Column Form Card */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-8">
+        {/* Section 1: Match Format & Game Mode */}
+        <div className="space-y-6 pb-6 border-b border-slate-200">
+          <div className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+            <Settings2 className="w-5 h-5 text-emerald-600" />
+            <span>1. Match Format & Play Mode</span>
           </div>
 
           {/* Format Selector */}
@@ -362,18 +362,18 @@ export const SetupStep: React.FC<SetupStepProps> = ({
 
           {/* Online Room Creation & Joining Panel */}
           {playMode === 'ONLINE_ROOM' && (
-            <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-4">
-              <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2">
+            <div className="p-4.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-4">
+              <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2.5">
                 <span className="text-xs font-black text-emerald-950 uppercase flex items-center gap-1.5">
-                  <Wifi className="w-3.5 h-3.5 text-emerald-700" />
-                  Cross-Device Multiplayer
+                  <Wifi className="w-4 h-4 text-emerald-700" />
+                  Cross-Device Multiplayer Room
                 </span>
 
-                <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-emerald-200 text-xs">
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-emerald-200 text-xs">
                   <button
                     type="button"
                     onClick={() => setRoomSubTab('create')}
-                    className={`px-3 py-1 rounded font-bold transition-all ${
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
                       roomSubTab === 'create'
                         ? 'bg-slate-900 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
@@ -384,7 +384,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                   <button
                     type="button"
                     onClick={() => setRoomSubTab('join')}
-                    className={`px-3 py-1 rounded font-bold transition-all ${
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
                       roomSubTab === 'join'
                         ? 'bg-slate-900 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
@@ -398,26 +398,26 @@ export const SetupStep: React.FC<SetupStepProps> = ({
               {roomSubTab === 'create' ? (
                 <div className="text-xs text-emerald-900 space-y-2">
                   <p className="font-semibold">
-                    Hosting creates a unique 6-digit Room Code. Share the code with your opponent so they can join from their device!
+                    Hosting creates a unique 6-digit Room Code with direct link format <span className="font-mono bg-emerald-100 px-1.5 py-0.5 rounded font-bold">/room/123456</span>. Share the link with your opponent to play live!
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <label className="block text-xs font-bold text-slate-700">Enter 6-Digit Room Code</label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <input
                       type="text"
                       maxLength={6}
                       placeholder="e.g. 839210"
                       value={inputRoomCode}
                       onChange={(e) => setInputRoomCode(e.target.value.toUpperCase())}
-                      className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-center text-lg font-black tracking-widest text-slate-900 focus:outline-none focus:border-slate-500 uppercase shrink-0 w-44"
+                      className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-center text-lg font-black tracking-widest text-slate-900 focus:outline-none focus:border-slate-500 uppercase shrink-0 w-48 shadow-2xs"
                     />
-                    <span className="text-xs text-slate-500 font-medium">Ask Host (P1) for code</span>
+                    <span className="text-xs text-slate-500 font-medium">Ask Host (P1) for room code or link</span>
                   </div>
 
                   {joinError && (
-                    <div className="p-2.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                    <div className="p-3 rounded-xl bg-rose-100 border border-rose-300 text-rose-800 text-xs font-semibold flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                       <span>{joinError}</span>
                     </div>
@@ -470,7 +470,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
           </div>
 
           {/* Team Names */}
-          <div className="pt-2">
+          <div>
             {playMode === 'ONLINE_ROOM' ? (
               roomSubTab === 'create' ? (
                 <div>
@@ -479,7 +479,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                     type="text"
                     value={p1Name}
                     onChange={(e) => setP1Name(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
               ) : (
@@ -489,19 +489,19 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                     type="text"
                     value={p2Name}
                     onChange={(e) => setP2Name(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
               )
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Player 1 Team Name</label>
                   <input
                     type="text"
                     value={p1Name}
                     onChange={(e) => setP1Name(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
                 <div>
@@ -512,7 +512,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                     type="text"
                     value={p2Name}
                     onChange={(e) => setP2Name(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
               </div>
@@ -520,265 +520,260 @@ export const SetupStep: React.FC<SetupStepProps> = ({
           </div>
         </div>
 
-        {/* Team Compositions Panel */}
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-6 flex flex-col justify-between">
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 text-base font-bold text-slate-900 pb-3 border-b border-slate-200">
-              <Users className="w-5 h-5 text-slate-700" />
-              <span>
-                2. 11-Player Squad Composition{' '}
-                {playMode === 'ONLINE_ROOM' && (roomSubTab === 'create' ? '(Your Team)' : '(Your Team)')}
-              </span>
-            </div>
-
-            {/* Player 1 Composition Config (rendered if not ONLINE_ROOM, or if ONLINE_ROOM create) */}
-            {(playMode !== 'ONLINE_ROOM' || roomSubTab === 'create') && (
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-slate-900">{p1Name}</span>
-                  <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="text-slate-500">Total:</span>
-                    <span className={`px-2 py-0.5 rounded ${isP1Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
-                      {p1Total} / 11
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="text-slate-500 font-medium">Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('p1', 'balanced')}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                  >
-                    Balanced (5-2-1-3)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('p1', 'batting')}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                  >
-                    Bat Heavy (6-1-1-3)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('p1', 'bowling')}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                  >
-                    Bowl Heavy (4-2-1-4)
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
-                  <div>
-                    <label className="text-slate-500 block mb-1">Batsmen</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="8"
-                      value={p1Comp.batsmen}
-                      onChange={(e) => setP1Comp({ ...p1Comp, batsmen: parseInt(e.target.value) || 0 })}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-slate-500 block mb-1">All-rounders</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="6"
-                      value={p1Comp.allRounders}
-                      onChange={(e) => setP1Comp({ ...p1Comp, allRounders: parseInt(e.target.value) || 0 })}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-slate-500 block mb-1">Wicketkeeper</label>
-                    <input
-                      type="number"
-                      value={1}
-                      disabled
-                      className="w-full px-2 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed"
-                    />
-                    <span className="text-[9px] text-slate-500 font-semibold">1 Compulsory</span>
-                  </div>
-                  <div>
-                    <label className="text-slate-500 block mb-1">Bowlers</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="7"
-                      value={p1Comp.bowlers}
-                      onChange={(e) => setP1Comp({ ...p1Comp, bowlers: parseInt(e.target.value) || 0 })}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Player 2 Composition Config (rendered if not ONLINE_ROOM, or if ONLINE_ROOM join) */}
-            {(playMode !== 'ONLINE_ROOM' || roomSubTab === 'join') && (
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-slate-900">
-                    {playMode === 'VS_AI' ? `${p2Name} (AI)` : p2Name}
-                  </span>
-                  <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="text-slate-500">Total:</span>
-                    <span className={`px-2 py-0.5 rounded ${isP2Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
-                      {p2Total} / 11
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="text-slate-500 font-medium">Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('p2', 'balanced')}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                  >
-                    Balanced (5-2-1-3)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('p2', 'batting')}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                  >
-                    Bat Heavy (6-1-1-3)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('p2', 'bowling')}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium"
-                  >
-                    Bowl Heavy (4-2-1-4)
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
-                  <div>
-                    <label className="text-slate-500 block mb-1">Batsmen</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="8"
-                      value={p2Comp.batsmen}
-                      onChange={(e) => setP2Comp({ ...p2Comp, batsmen: parseInt(e.target.value) || 0 })}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-slate-500 block mb-1">All-rounders</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="6"
-                      value={p2Comp.allRounders}
-                      onChange={(e) => setP2Comp({ ...p2Comp, allRounders: parseInt(e.target.value) || 0 })}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-slate-500 block mb-1">Wicketkeeper</label>
-                    <input
-                      type="number"
-                      value={1}
-                      disabled
-                      className="w-full px-2 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed"
-                    />
-                    <span className="text-[9px] text-slate-500 font-semibold">1 Compulsory</span>
-                  </div>
-                  <div>
-                    <label className="text-slate-500 block mb-1">Bowlers</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="7"
-                      value={p2Comp.bowlers}
-                      onChange={(e) => setP2Comp({ ...p2Comp, bowlers: parseInt(e.target.value) || 0 })}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* Section 2: 11-Player Squad Composition */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+            <Users className="w-5 h-5 text-emerald-600" />
+            <span>2. 11-Player Squad Composition</span>
           </div>
 
-          {/* Submit Button */}
-          <div className="pt-4 border-t border-slate-200 space-y-3">
-            {playMode === 'ONLINE_ROOM' ? (
-              roomSubTab === 'create' ? (
-                <>
-                  {!isP1Valid && (
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>Host composition must total 11 players with 1 compulsory Wicketkeeper!</span>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleStartDraft}
-                    disabled={!isP1Valid}
-                    className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                      isP1Valid
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-black'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
-                  >
-                    <Wifi className="w-4 h-4" />
-                    <span>Host Online Room & Generate Code</span>
-                  </button>
-                </>
-              ) : (
-                <>
-                  {(!isP2Valid || !inputRoomCode.trim()) && (
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>Enter a valid 6-digit Room Code and 11-player squad composition!</span>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleStartDraft}
-                    disabled={!isP2Valid || !inputRoomCode.trim() || isJoining}
-                    className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                      isP2Valid && inputRoomCode.trim() && !isJoining
-                        ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs font-black'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    <span>{isJoining ? 'Joining Room...' : 'Join Online Room & Start Draft'}</span>
-                  </button>
-                </>
-              )
-            ) : (
+          {/* Player 1 Composition Config (rendered if not ONLINE_ROOM, or if ONLINE_ROOM create) */}
+          {(playMode !== 'ONLINE_ROOM' || roomSubTab === 'create') && (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-slate-900">{p1Name}</span>
+                <div className="flex items-center gap-1.5 text-xs font-bold">
+                  <span className="text-slate-500">Total:</span>
+                  <span className={`px-2 py-0.5 rounded ${isP1Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
+                    {p1Total} / 11
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="text-slate-500 font-medium">Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('p1', 'balanced')}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold transition-all"
+                >
+                  Balanced (5-2-1-3)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('p1', 'batting')}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold transition-all"
+                >
+                  Bat Heavy (6-1-1-3)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('p1', 'bowling')}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold transition-all"
+                >
+                  Bowl Heavy (4-2-1-4)
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs pt-1">
+                <div>
+                  <label className="text-slate-500 block mb-1">Batsmen</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={p1Comp.batsmen}
+                    onChange={(e) => setP1Comp({ ...p1Comp, batsmen: parseInt(e.target.value) || 0 })}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-500 block mb-1">All-rounders</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="6"
+                    value={p1Comp.allRounders}
+                    onChange={(e) => setP1Comp({ ...p1Comp, allRounders: parseInt(e.target.value) || 0 })}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-500 block mb-1">Wicketkeeper</label>
+                  <input
+                    type="number"
+                    value={1}
+                    disabled
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed text-sm"
+                  />
+                  <span className="text-[9px] text-slate-500 font-semibold block mt-0.5">1 Compulsory</span>
+                </div>
+                <div>
+                  <label className="text-slate-500 block mb-1">Bowlers</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="7"
+                    value={p1Comp.bowlers}
+                    onChange={(e) => setP1Comp({ ...p1Comp, bowlers: parseInt(e.target.value) || 0 })}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Player 2 Composition Config (rendered if not ONLINE_ROOM, or if ONLINE_ROOM join) */}
+          {(playMode !== 'ONLINE_ROOM' || roomSubTab === 'join') && (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-slate-900">
+                  {playMode === 'VS_AI' ? `${p2Name} (AI)` : p2Name}
+                </span>
+                <div className="flex items-center gap-1.5 text-xs font-bold">
+                  <span className="text-slate-500">Total:</span>
+                  <span className={`px-2 py-0.5 rounded ${isP2Valid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
+                    {p2Total} / 11
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="text-slate-500 font-medium">Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('p2', 'balanced')}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold transition-all"
+                >
+                  Balanced (5-2-1-3)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('p2', 'batting')}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold transition-all"
+                >
+                  Bat Heavy (6-1-1-3)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('p2', 'bowling')}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold transition-all"
+                >
+                  Bowl Heavy (4-2-1-4)
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs pt-1">
+                <div>
+                  <label className="text-slate-500 block mb-1">Batsmen</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={p2Comp.batsmen}
+                    onChange={(e) => setP2Comp({ ...p2Comp, batsmen: parseInt(e.target.value) || 0 })}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-500 block mb-1">All-rounders</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="6"
+                    value={p2Comp.allRounders}
+                    onChange={(e) => setP2Comp({ ...p2Comp, allRounders: parseInt(e.target.value) || 0 })}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-500 block mb-1">Wicketkeeper</label>
+                  <input
+                    type="number"
+                    value={1}
+                    disabled
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-600 cursor-not-allowed text-sm"
+                  />
+                  <span className="text-[9px] text-slate-500 font-semibold block mt-0.5">1 Compulsory</span>
+                </div>
+                <div>
+                  <label className="text-slate-500 block mb-1">Bowlers</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="7"
+                    value={p2Comp.bowlers}
+                    onChange={(e) => setP2Comp({ ...p2Comp, bowlers: parseInt(e.target.value) || 0 })}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-900 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Submit Action Button */}
+        <div className="pt-4 border-t border-slate-200 space-y-3">
+          {playMode === 'ONLINE_ROOM' ? (
+            roomSubTab === 'create' ? (
               <>
-                {(!isP1Valid || !isP2Valid) && (
+                {!isP1Valid && (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
                     <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>Each team composition must total 11 players with 1 compulsory Wicketkeeper!</span>
+                    <span>Host composition must total 11 players with 1 compulsory Wicketkeeper!</span>
                   </div>
                 )}
-
                 <button
                   type="button"
                   onClick={handleStartDraft}
-                  disabled={!isP1Valid || !isP2Valid}
-                  className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                    isP1Valid && isP2Valid
-                      ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs font-black'
+                  disabled={!isP1Valid}
+                  className={`w-full py-4 px-6 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                    isP1Valid
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.99]'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}
                 >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Proceed to Surprise Fantasy Draft</span>
+                  <Wifi className="w-4 h-4" />
+                  <span>Host Online Room & Generate Code</span>
                 </button>
               </>
-            )}
-          </div>
+            ) : (
+              <>
+                {(!isP2Valid || !inputRoomCode.trim()) && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>Enter a valid 6-digit Room Code and 11-player squad composition!</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleStartDraft}
+                  disabled={!isP2Valid || !inputRoomCode.trim() || isJoining}
+                  className={`w-full py-4 px-6 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                    isP2Valid && inputRoomCode.trim() && !isJoining
+                      ? 'bg-slate-900 hover:bg-slate-800 text-white active:scale-[0.99]'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>{isJoining ? 'Joining Room...' : 'Join Online Room & Start Draft'}</span>
+                </button>
+              </>
+            )
+          ) : (
+            <>
+              {(!isP1Valid || !isP2Valid) && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Each team composition must total 11 players with 1 compulsory Wicketkeeper!</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleStartDraft}
+                disabled={!isP1Valid || !isP2Valid}
+                className={`w-full py-4 px-6 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                  isP1Valid && isP2Valid
+                    ? 'bg-slate-900 hover:bg-slate-800 text-white active:scale-[0.99]'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Proceed to Surprise Fantasy Draft</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
