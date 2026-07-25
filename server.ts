@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -13,34 +14,8 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Helper: Pick a random unused squad index so no 2 same squads appear in a single game
-function drawUnusedSquadIndex(usedIndices: number[]): number {
-  const total = ICONIC_SQUADS.length;
-  if (usedIndices.length >= total) {
-    const last = usedIndices[usedIndices.length - 1];
-    usedIndices.length = 0;
-    if (last !== undefined) usedIndices.push(last);
-  }
-
-  let attempts = 0;
-  let idx = Math.floor(Math.random() * total);
-  while (usedIndices.includes(idx) && attempts < 1000) {
-    idx = Math.floor(Math.random() * total);
-    attempts++;
-  }
-  usedIndices.push(idx);
-  return idx;
-}
-
-// Initialize Google Gen AI client server-side
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+// Persistent Store File Path
+const ROOMS_FILE_PATH = path.join(process.cwd(), 'data', 'rooms.json');
 
 // Session player availability tracking state (in-memory, synchronized)
 let globalDraftedPlayers: Set<string> = new Set();
@@ -78,7 +53,79 @@ interface RoomState {
   lastUpdated: number;
 }
 
-const rooms: Map<string, RoomState> = new Map();
+// Load persistent rooms from disk
+function loadRoomsFromDisk(): Map<string, RoomState> {
+  const map = new Map<string, RoomState>();
+  try {
+    const dir = path.dirname(ROOMS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    if (fs.existsSync(ROOMS_FILE_PATH)) {
+      const data = fs.readFileSync(ROOMS_FILE_PATH, 'utf-8');
+      const json = JSON.parse(data);
+      const now = Date.now();
+      Object.keys(json).forEach((code) => {
+        const room = json[code];
+        // Retain rooms updated in the last 24 hours
+        if (room && (now - (room.lastUpdated || 0)) < 24 * 60 * 60 * 1000) {
+          map.set(code, room);
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error loading rooms from disk:', err);
+  }
+  return map;
+}
+
+// Save rooms map to disk
+function saveRoomsToDisk() {
+  try {
+    const dir = path.dirname(ROOMS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const obj: Record<string, RoomState> = {};
+    rooms.forEach((val, key) => {
+      obj[key] = val;
+    });
+    fs.writeFileSync(ROOMS_FILE_PATH, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving rooms to disk:', err);
+  }
+}
+
+// Initialize Google Gen AI client server-side
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      "User-Agent": "aistudio-build",
+    },
+  },
+});
+
+const rooms: Map<string, RoomState> = loadRoomsFromDisk();
+
+// Helper: Pick a random unused squad index so no 2 same squads appear in a single game
+function drawUnusedSquadIndex(usedIndices: number[]): number {
+  const total = ICONIC_SQUADS.length;
+  if (usedIndices.length >= total) {
+    const last = usedIndices[usedIndices.length - 1];
+    usedIndices.length = 0;
+    if (last !== undefined) usedIndices.push(last);
+  }
+
+  let attempts = 0;
+  let idx = Math.floor(Math.random() * total);
+  while (usedIndices.includes(idx) && attempts < 1000) {
+    idx = Math.floor(Math.random() * total);
+    attempts++;
+  }
+  usedIndices.push(idx);
+  return idx;
+}
 
 // Helper: Generate 6-digit numeric room code
 function generateRoomCode(): string {
@@ -134,13 +181,14 @@ app.post("/api/rooms/create", (req, res) => {
   room.currentSquadIndex = drawUnusedSquadIndex(room.usedSquadIndices);
 
   rooms.set(code, room);
+  saveRoomsToDisk();
   res.json({ success: true, code, playerId: 'p1', room });
 });
 
 // API: Join an existing room with room code
 app.post("/api/rooms/join", (req, res) => {
   const { code, p2Name, p2Comp } = req.body;
-  const cleanCode = (code || '').trim();
+  const cleanCode = (code || '').trim().toUpperCase();
   const room = rooms.get(cleanCode);
 
   if (!room) {
@@ -159,12 +207,14 @@ app.post("/api/rooms/join", (req, res) => {
   room.turnStartTime = Date.now();
   room.lastUpdated = Date.now();
 
+  saveRoomsToDisk();
   res.json({ success: true, code: cleanCode, playerId: 'p2', room });
 });
 
 // API: Get room state by code (polling endpoint)
 app.get("/api/rooms/:code", (req, res) => {
-  const room = rooms.get(req.params.code);
+  const cleanCode = (req.params.code || '').trim().toUpperCase();
+  const room = rooms.get(cleanCode);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -173,29 +223,49 @@ app.get("/api/rooms/:code", (req, res) => {
 
 // API: Update room general state
 app.post("/api/rooms/:code/update", (req, res) => {
-  const room = rooms.get(req.params.code);
+  const cleanCode = (req.params.code || '').trim().toUpperCase();
+  const room = rooms.get(cleanCode);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
 
-  const { status, p1BattingOrder, p2BattingOrder, tossWinner, tossDecision, matchResult, format, pitch } = req.body;
+  const {
+    status,
+    p1Name,
+    p2Name,
+    p1BattingOrder,
+    p2BattingOrder,
+    tossWinner,
+    tossDecision,
+    matchResult,
+    format,
+    pitch,
+    currentSquadIndex,
+    activeDraftTurn,
+  } = req.body;
 
   if (status) room.status = status;
   if (format) room.format = format;
   if (pitch) room.pitch = pitch;
+  if (p1Name) room.p1.name = p1Name;
+  if (p2Name) room.p2.name = p2Name;
   if (p1BattingOrder) room.p1.battingOrder = p1BattingOrder;
   if (p2BattingOrder) room.p2.battingOrder = p2BattingOrder;
   if (tossWinner) room.tossWinner = tossWinner;
   if (tossDecision) room.tossDecision = tossDecision;
   if (matchResult) room.matchResult = matchResult;
+  if (currentSquadIndex !== undefined) room.currentSquadIndex = currentSquadIndex;
+  if (activeDraftTurn) room.activeDraftTurn = activeDraftTurn;
 
   room.lastUpdated = Date.now();
+  saveRoomsToDisk();
   res.json({ success: true, room });
 });
 
 // API: Draft a player in a room
 app.post("/api/rooms/:code/draft/select", (req, res) => {
-  const room = rooms.get(req.params.code);
+  const cleanCode = (req.params.code || '').trim().toUpperCase();
+  const room = rooms.get(cleanCode);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -245,6 +315,7 @@ app.post("/api/rooms/:code/draft/select", (req, res) => {
   }
 
   room.lastUpdated = Date.now();
+  saveRoomsToDisk();
   res.json({ success: true, room });
 });
 

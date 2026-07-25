@@ -49,16 +49,23 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   const [p1Name, setP1Name] = useState<string>('Royal Strikers XI');
   const [p2Name, setP2Name] = useState<string>('Cyber Legends XI');
 
-  // Check URL query string for ?room=XXXXXX
+  // Check URL query string or pathname for room code
   useEffect(() => {
+    const pathParts = window.location.pathname.split('/');
+    const roomIdx = pathParts.indexOf('room');
+    const codeFromPath = roomIdx !== -1 && pathParts[roomIdx + 1] ? pathParts[roomIdx + 1] : null;
     const params = new URLSearchParams(window.location.search);
     const codeParam = params.get('room');
-    if (codeParam) {
-      setInputRoomCode(codeParam.toUpperCase());
+    const targetCode = (roomCode || codeFromPath || codeParam || '').trim().toUpperCase();
+
+    if (targetCode && targetCode.length === 6) {
+      setInputRoomCode(targetCode);
       setPlayMode('ONLINE_ROOM');
-      setRoomSubTab('join');
+      if (myPlayerRole === 'p2' || (!roomCode && !myPlayerRole)) {
+        setRoomSubTab('join');
+      }
     }
-  }, []);
+  }, [roomCode, myPlayerRole]);
 
   const [p1Comp, setP1Comp] = useState<TeamComposition>({
     batsmen: 5,

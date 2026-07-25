@@ -4,6 +4,7 @@ import { ICONIC_SQUADS } from '../data/iconicSquads';
 import { PlayerCard } from './PlayerCard';
 import { FieldPitchView } from './FieldPitchView';
 import { chooseAiDraftPick } from '../services/aiDraftService';
+import { updateRoomState } from '../services/roomService';
 import { Sparkles, Bot, Clock, CheckCircle2, Users, ChevronDown, ChevronUp, Dices } from 'lucide-react';
 
 interface DraftStepProps {
@@ -196,6 +197,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   useEffect(() => {
     if (isDraftComplete) return;
     if (activeTurn === 'p2' && p2Team.isAi) return; // AI turn handles itself
+    if (roomCode && myPlayerRole && activeTurn !== myPlayerRole) return; // Only active player auto-picks in room mode
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -209,7 +211,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [activeTurn, p2Team.isAi, isDraftComplete, handleAutoPick]);
+  }, [activeTurn, p2Team.isAi, isDraftComplete, handleAutoPick, roomCode, myPlayerRole]);
 
   // AI Automatic Draft turn handler
   useEffect(() => {
@@ -525,10 +527,13 @@ export const DraftStep: React.FC<DraftStepProps> = ({
         {/* Optional Manual Redraw button */}
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
             const nextIdx = drawNewRandomSquad(usedSquadIndices);
             setLocalSquadIndex(nextIdx);
             setUsedSquadIndices((prev) => [...prev, nextIdx]);
+            if (roomCode) {
+              await updateRoomState(roomCode, { currentSquadIndex: nextIdx });
+            }
           }}
           disabled={(activeTurn === 'p2' && p2Team.isAi) || (!!roomCode && myPlayerRole !== activeTurn)}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 shrink-0 disabled:opacity-50"

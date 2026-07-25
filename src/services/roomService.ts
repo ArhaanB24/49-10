@@ -196,7 +196,7 @@ export async function joinRoom(params: {
   p2Name: string;
   p2Comp: any;
 }): Promise<{ success: boolean; code: string; playerId: 'p2'; room: RoomState }> {
-  const cleanCode = (params.code || '').trim();
+  const cleanCode = (params.code || '').trim().toUpperCase();
 
   // 1. Try Express backend server first
   const serverRes = await safeFetchJson('/api/rooms/join', {
@@ -247,12 +247,13 @@ export async function joinRoom(params: {
 
 // GET ROOM
 export async function getRoom(code: string): Promise<RoomState | null> {
-  const serverRes = await safeFetchJson(`/api/rooms/${code}`);
+  const cleanCode = (code || '').trim().toUpperCase();
+  const serverRes = await safeFetchJson(`/api/rooms/${cleanCode}`);
   if (serverRes && serverRes.success && serverRes.room) {
     return serverRes.room;
   }
 
-  const raw = localStorage.getItem(`cricket_room_${code}`);
+  const raw = localStorage.getItem(`cricket_room_${cleanCode}`);
   if (raw) {
     try {
       return JSON.parse(raw);
@@ -324,8 +325,17 @@ export async function draftSelectPlayer(code: string, playerId: 'p1' | 'p2', pla
 }
 
 // UPDATE ROOM STATE
-export async function updateRoomState(code: string, updateData: Partial<RoomState>): Promise<RoomState | null> {
-  const serverRes = await safeFetchJson(`/api/rooms/${code}/update`, {
+export async function updateRoomState(
+  code: string,
+  updateData: Partial<RoomState> & {
+    p1BattingOrder?: any[];
+    p2BattingOrder?: any[];
+    p1Name?: string;
+    p2Name?: string;
+  }
+): Promise<RoomState | null> {
+  const cleanCode = (code || '').trim().toUpperCase();
+  const serverRes = await safeFetchJson(`/api/rooms/${cleanCode}/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updateData),

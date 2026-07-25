@@ -512,8 +512,14 @@ export const App: React.FC = () => {
           <TeamSummaryStep
             p1Team={p1Team}
             p2Team={p2Team}
-            onUpdateP1BattingOrder={(order) => setP1Team({ ...p1Team, battingOrder: order })}
-            onUpdateP2BattingOrder={(order) => setP2Team({ ...p2Team, battingOrder: order })}
+            onUpdateP1BattingOrder={(order) => {
+              setP1Team({ ...p1Team, battingOrder: order });
+              if (roomCode) updateRoomState(roomCode, { p1BattingOrder: order });
+            }}
+            onUpdateP2BattingOrder={(order) => {
+              setP2Team({ ...p2Team, battingOrder: order });
+              if (roomCode) updateRoomState(roomCode, { p2BattingOrder: order });
+            }}
             onStartMatch={handleStartMatch}
           />
         )}
