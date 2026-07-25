@@ -107,6 +107,60 @@ function broadcastRoom(room: RoomState) {
   }
 }
 
+// Cloud Key-Value Store fallback for cross-device sync when Express server is not reachable (e.g. static hosts like Vercel)
+const CLOUD_APP_ID = 'cricket_fantasy_v2';
+
+function encodeRoomData(room: RoomState): string {
+  try {
+    const json = JSON.stringify(room);
+    return btoa(encodeURIComponent(json));
+  } catch {
+    return encodeURIComponent(JSON.stringify(room));
+  }
+}
+
+function decodeRoomData(str: string): RoomState | null {
+  try {
+    let cleanStr = str.trim().replace(/^"|"$/g, '');
+    if (!cleanStr || cleanStr === 'null' || cleanStr === '""') return null;
+    let json: string;
+    try {
+      json = decodeURIComponent(atob(cleanStr));
+    } catch {
+      json = decodeURIComponent(cleanStr);
+    }
+    const room = JSON.parse(json);
+    if (room && room.code) return room;
+  } catch {}
+  return null;
+}
+
+async function syncRoomToCloud(room: RoomState): Promise<void> {
+  try {
+    const val = encodeRoomData(room);
+    await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_ID}/${room.code}/${val}`, {
+      method: 'POST',
+    });
+  } catch (err) {
+    // Silent catch
+  }
+}
+
+async function fetchRoomFromCloud(code: string): Promise<RoomState | null> {
+  try {
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode) return null;
+    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_ID}/${cleanCode}`);
+    if (res.ok) {
+      const text = await res.text();
+      return decodeRoomData(text);
+    }
+  } catch (err) {
+    // Silent catch
+  }
+  return null;
+}
+
 // Helper to safely call server API and check if response is JSON
 async function safeFetchJson(url: string, options?: RequestInit): Promise<any | null> {
   try {
@@ -147,10 +201,11 @@ export async function createRoom(params: {
 
   if (serverRes && serverRes.success && serverRes.code) {
     broadcastRoom(serverRes.room);
+    syncRoomToCloud(serverRes.room);
     return serverRes;
   }
 
-  // 2. Fallback to LocalStorage + BroadcastChannel client-side room
+  // 2. Fallback to LocalStorage + Cloud KV Store + BroadcastChannel client-side room
   const code = generateRoomCode();
   const room: RoomState = {
     code,
@@ -186,6 +241,7 @@ export async function createRoom(params: {
 
   room.currentSquadIndex = drawUnusedSquadIndex(room.usedSquadIndices);
   broadcastRoom(room);
+  syncRoomToCloud(room);
 
   return { success: true, code, playerId: 'p1', room };
 }
@@ -208,6 +264,7 @@ export async function joinRoom(params: {
   if (serverRes) {
     if (serverRes.success && serverRes.room) {
       broadcastRoom(serverRes.room);
+      syncRoomToCloud(serverRes.room);
       return serverRes;
     }
     if (serverRes.error) {
@@ -215,17 +272,10 @@ export async function joinRoom(params: {
     }
   }
 
-  // 2. Fallback to LocalStorage client-side lookup
-  const raw = localStorage.getItem(`cricket_room_${cleanCode}`);
-  if (!raw) {
+  // 2. Try getting room from LocalStorage or Cloud KV Store
+  let room = await getRoom(cleanCode);
+  if (!room) {
     throw new Error('Room not found! Check the 6-digit code and try again.');
-  }
-
-  let room: RoomState;
-  try {
-    room = JSON.parse(raw);
-  } catch {
-    throw new Error('Room data is invalid or expired. Please ask Host to create a new room.');
   }
 
   if (room.p2.isReady && !room.p2.isAi) {
@@ -241,6 +291,7 @@ export async function joinRoom(params: {
   room.lastUpdated = Date.now();
 
   broadcastRoom(room);
+  syncRoomToCloud(room);
 
   return { success: true, code: cleanCode, playerId: 'p2', room };
 }
@@ -248,18 +299,36 @@ export async function joinRoom(params: {
 // GET ROOM
 export async function getRoom(code: string): Promise<RoomState | null> {
   const cleanCode = (code || '').trim().toUpperCase();
+  if (!cleanCode) return null;
+
+  // 1. Try Express backend
   const serverRes = await safeFetchJson(`/api/rooms/${cleanCode}`);
   if (serverRes && serverRes.success && serverRes.room) {
     return serverRes.room;
   }
 
+  // 2. Try LocalStorage
+  let localRoom: RoomState | null = null;
   const raw = localStorage.getItem(`cricket_room_${cleanCode}`);
   if (raw) {
     try {
-      return JSON.parse(raw);
+      localRoom = JSON.parse(raw);
     } catch {}
   }
-  return null;
+
+  // 3. Try Cloud KV store for cross-device sync
+  const cloudRoom = await fetchRoomFromCloud(cleanCode);
+
+  if (cloudRoom && localRoom) {
+    return (cloudRoom.lastUpdated || 0) >= (localRoom.lastUpdated || 0) ? cloudRoom : localRoom;
+  }
+
+  if (cloudRoom) {
+    localStorage.setItem(`cricket_room_${cleanCode}`, JSON.stringify(cloudRoom));
+    return cloudRoom;
+  }
+
+  return localRoom;
 }
 
 // DRAFT SELECT PLAYER
@@ -271,19 +340,14 @@ export async function draftSelectPlayer(code: string, playerId: 'p1' | 'p2', pla
   });
 
   if (serverRes && serverRes.success && serverRes.room) {
+    broadcastRoom(serverRes.room);
+    syncRoomToCloud(serverRes.room);
     return serverRes.room;
   }
 
   // Local fallback
-  const raw = localStorage.getItem(`cricket_room_${code}`);
-  if (!raw) throw new Error('Room not found');
-
-  let room: RoomState;
-  try {
-    room = JSON.parse(raw);
-  } catch {
-    throw new Error('Room data is invalid');
-  }
+  let room = await getRoom(code);
+  if (!room) throw new Error('Room not found');
 
   if (room.globalDraftedCanonicalIds.includes(player.canonicalId)) {
     throw new Error(`${player.name} has already been drafted!`);
@@ -321,6 +385,7 @@ export async function draftSelectPlayer(code: string, playerId: 'p1' | 'p2', pla
 
   room.lastUpdated = Date.now();
   broadcastRoom(room);
+  syncRoomToCloud(room);
   return room;
 }
 
@@ -342,22 +407,18 @@ export async function updateRoomState(
   });
 
   if (serverRes && serverRes.success && serverRes.room) {
+    broadcastRoom(serverRes.room);
+    syncRoomToCloud(serverRes.room);
     return serverRes.room;
   }
 
-  const raw = localStorage.getItem(`cricket_room_${code}`);
-  if (!raw) return null;
-
-  let room: RoomState;
-  try {
-    room = JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  let room = await getRoom(cleanCode);
+  if (!room) return null;
 
   Object.assign(room, updateData);
   room.lastUpdated = Date.now();
 
   broadcastRoom(room);
+  syncRoomToCloud(room);
   return room;
 }
