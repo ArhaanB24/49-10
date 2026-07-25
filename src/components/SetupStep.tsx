@@ -3,6 +3,9 @@ import { GameFormat, PitchType, TeamComposition, UserTeam } from '../types';
 import { Trophy, Users, Bot, Settings2, Play, AlertCircle, Wifi, Copy, ArrowRight } from 'lucide-react';
 
 interface SetupStepProps {
+  roomCode?: string | null;
+  myPlayerRole?: 'p1' | 'p2' | null;
+  onCancelRoom?: () => void;
   onCompleteSetup: (
     format: GameFormat,
     isAiMode: boolean,
@@ -24,6 +27,9 @@ interface SetupStepProps {
 }
 
 export const SetupStep: React.FC<SetupStepProps> = ({
+  roomCode,
+  myPlayerRole,
+  onCancelRoom,
   onCompleteSetup,
   onCreateOnlineRoom,
   onJoinOnlineRoom,
@@ -37,6 +43,8 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   const [inputRoomCode, setInputRoomCode] = useState<string>('');
   const [isJoining, setIsJoining] = useState<boolean>(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   const [p1Name, setP1Name] = useState<string>('Royal Strikers XI');
   const [p2Name, setP2Name] = useState<string>('Cyber Legends XI');
@@ -131,6 +139,89 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       }
     );
   };
+
+  const copyRoomCode = () => {
+    if (!roomCode) return;
+    navigator.clipboard.writeText(roomCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
+
+  const copyShareLink = () => {
+    if (!roomCode) return;
+    const shareUrl = `${window.location.origin}/?room=${roomCode}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  if (roomCode && myPlayerRole === 'p1') {
+    const shareUrl = `${window.location.origin}/?room=${roomCode}`;
+
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 text-slate-900 space-y-8">
+        <div className="p-8 rounded-3xl bg-white border border-emerald-200 shadow-xl text-center space-y-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-black uppercase tracking-wider">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+            Online Room Active & Waiting
+          </div>
+
+          <div>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1">
+              Your 6-Digit Room Code
+            </span>
+            <div className="text-5xl font-black tracking-widest text-emerald-950 font-mono my-2 select-all">
+              {roomCode}
+            </div>
+            <p className="text-xs text-slate-600 font-medium max-w-md mx-auto">
+              Share this code or direct link with Player 2. When they join on their device, the Fantasy Draft will start automatically on both screens!
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <button
+              type="button"
+              onClick={copyRoomCode}
+              className="py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all"
+            >
+              <Copy className="w-4 h-4" />
+              <span>{copiedCode ? 'Code Copied!' : 'Copy 6-Digit Code'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={copyShareLink}
+              className="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all"
+            >
+              <Wifi className="w-4 h-4" />
+              <span>{copiedLink ? 'Link Copied!' : 'Copy Direct Share Link'}</span>
+            </button>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2">
+            <div className="font-black text-slate-800 uppercase tracking-wide">Match Setup Summary</div>
+            <div className="grid grid-cols-2 gap-2 text-slate-600">
+              <div><span className="font-semibold text-slate-900">Format:</span> {format}</div>
+              <div><span className="font-semibold text-slate-900">Pitch:</span> {pitch}</div>
+              <div><span className="font-semibold text-slate-900">Host Team:</span> {p1Name}</div>
+              <div><span className="font-semibold text-slate-900">Host Composition:</span> {p1Comp.batsmen} Bat, {p1Comp.allRounders} AR, 1 WK, {p1Comp.bowlers} Bowl</div>
+            </div>
+          </div>
+
+          {onCancelRoom && (
+            <button
+              type="button"
+              onClick={onCancelRoom}
+              className="text-xs text-slate-500 hover:text-rose-600 font-medium underline transition-all pt-2"
+            >
+              Cancel Room & Return to Setup
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 text-slate-900 space-y-8">

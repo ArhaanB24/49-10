@@ -443,6 +443,12 @@ export const App: React.FC = () => {
       <main className="container mx-auto px-4 pt-4">
         {stage === 'SETUP' && (
           <SetupStep
+            roomCode={roomCode}
+            myPlayerRole={myPlayerRole}
+            onCancelRoom={() => {
+              setRoomCode(null);
+              setMyPlayerRole(null);
+            }}
             onCompleteSetup={handleCompleteSetup}
             onCreateOnlineRoom={handleCreateOnlineRoom}
             onJoinOnlineRoom={handleJoinOnlineRoom}

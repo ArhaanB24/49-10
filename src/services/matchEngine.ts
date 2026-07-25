@@ -273,11 +273,29 @@ export function simulateNextBall(
     }
   }
 
-  // Calculate Batting skill vs Bowling skill
-  const batterSkill = (strikerPlayer.ovr * 0.5 + (strikerPlayer.strikeRate / 1.5) * 0.5) * pitchBattingFactor;
-  const bowlerSkill = (bowlerPlayer.ovr * 0.5 + (100 - bowlerPlayer.economy * 7) * 0.5) * pitchWicketFactor;
+  // Calculate realistic Batting Rating vs Bowling Rating comparison
+  let batterOvr = strikerPlayer.ovr;
+  if (strikerPlayer.role === 'Bowler') {
+    // Tailenders have lower effective batting OVR based on battingAvg
+    batterOvr = Math.min(strikerPlayer.ovr * 0.55, strikerPlayer.battingAvg > 15 ? 65 : 45);
+  } else if (strikerPlayer.role === 'All-rounder') {
+    batterOvr = strikerPlayer.ovr * 0.92;
+  }
 
-  // Probability probabilities
+  let bowlerOvr = bowlerPlayer.ovr;
+  if (bowlerPlayer.role === 'Batsman' || bowlerPlayer.role === 'Wicketkeeper') {
+    bowlerOvr = Math.min(bowlerPlayer.ovr * 0.6, 58);
+  } else if (bowlerPlayer.role === 'All-rounder') {
+    bowlerOvr = bowlerPlayer.ovr * 0.93;
+  }
+
+  const effectiveBatterOvr = batterOvr * pitchBattingFactor;
+  const effectiveBowlerOvr = bowlerOvr * pitchWicketFactor;
+
+  // Net difference between batter & bowler
+  const ratingDiff = effectiveBatterOvr - effectiveBowlerOvr;
+
+  // Probability outcome simulation
   const rand = Math.random();
   let isWicket = false;
   let runs = 0;
@@ -285,15 +303,26 @@ export function simulateNextBall(
   let extraType: 'Wide' | 'No Ball' | undefined = undefined;
   let wicketType: 'Bowled' | 'Caught' | 'LBW' | 'Run Out' | 'Stumped' | undefined = undefined;
 
-  // Wicket chance calculation (~4-7% base adjusted by relative skill & pitch)
-  const baseWicketProb = (0.045 + (bowlerSkill - batterSkill) * 0.0008 + requiredRisk * 0.05) * pitchWicketFactor;
+  // Extra probability (~3%)
+  const extraProb = 0.03;
 
-  if (rand < 0.035) {
+  // Calculate Wicket Probability based directly on ratingDiff & required risk
+  let wicketProb = 0.04;
+  if (ratingDiff < 0) {
+    // Weak batter vs Strong bowler (e.g., 45 vs 99 => ratingDiff = -54 => +0.27 wicket prob = 31% chance per ball!)
+    wicketProb += Math.abs(ratingDiff) * 0.0055 + requiredRisk * 0.06;
+  } else {
+    // Top batter vs Weak bowler => low wicket chance
+    wicketProb = Math.max(0.012, 0.04 - ratingDiff * 0.001) + requiredRisk * 0.03;
+  }
+  wicketProb *= pitchWicketFactor;
+
+  if (rand < extraProb) {
     // Extra
     isExtra = true;
     extraType = Math.random() > 0.5 ? 'Wide' : 'No Ball';
     runs = 1;
-  } else if (rand < 0.035 + Math.max(0.015, Math.min(0.12, baseWicketProb))) {
+  } else if (rand < extraProb + Math.min(0.40, wicketProb)) {
     // Wicket
     isWicket = true;
     const wRand = Math.random();
@@ -303,11 +332,41 @@ export function simulateNextBall(
     else if (wRand < 0.95) wicketType = 'Run Out';
     else wicketType = 'Stumped';
   } else {
-    // Scoring outcome
+    // Scoring outcome - Strictly dictated by ratingDiff & phase
     const scoreRand = Math.random();
-    const sixProb = (isDeathOvers ? 0.12 : isPowerplay ? 0.08 : 0.05) * (batterSkill / 90);
-    const fourProb = (isPowerplay ? 0.22 : 0.15) * (batterSkill / 85);
-    const singleProb = 0.45;
+
+    let sixProb = 0.04;
+    let fourProb = 0.12;
+    let twoProb = 0.08;
+    let singleProb = 0.42;
+
+    if (ratingDiff < -20) {
+      // Very weak batter vs Great Bowler (e.g., Tailender 45 vs Bumrah 99)
+      // Six probability is basically 0.1%, four is 1%, high dot ball rate (75%)
+      sixProb = 0.001;
+      fourProb = 0.01;
+      twoProb = 0.03;
+      singleProb = 0.22;
+      // Remaining ~73.9% is dot ball!
+    } else if (ratingDiff < 0) {
+      // Slightly weaker batter
+      sixProb = (isDeathOvers ? 0.06 : 0.02) * (effectiveBatterOvr / 85);
+      fourProb = (isPowerplay ? 0.12 : 0.07) * (effectiveBatterOvr / 85);
+      twoProb = 0.06;
+      singleProb = 0.38;
+    } else if (ratingDiff > 20) {
+      // Dominant batter vs Weaker bowler (e.g. 98 Kohli vs 70 bowler)
+      sixProb = (isDeathOvers ? 0.22 : isPowerplay ? 0.15 : 0.10);
+      fourProb = (isPowerplay ? 0.30 : 0.22);
+      twoProb = 0.10;
+      singleProb = 0.28;
+    } else {
+      // Balanced matchup (e.g. 90 vs 90)
+      sixProb = isDeathOvers ? 0.10 : isPowerplay ? 0.06 : 0.04;
+      fourProb = isPowerplay ? 0.20 : 0.14;
+      twoProb = 0.09;
+      singleProb = 0.43;
+    }
 
     if (scoreRand < sixProb) {
       runs = 6;
@@ -315,9 +374,9 @@ export function simulateNextBall(
       runs = 4;
     } else if (scoreRand < sixProb + fourProb + singleProb) {
       runs = 1;
-    } else if (scoreRand < sixProb + fourProb + singleProb + 0.12) {
+    } else if (scoreRand < sixProb + fourProb + singleProb + twoProb) {
       runs = 2;
-    } else if (scoreRand < sixProb + fourProb + singleProb + 0.14) {
+    } else if (scoreRand < sixProb + fourProb + singleProb + twoProb + 0.01) {
       runs = 3;
     } else {
       runs = 0;
