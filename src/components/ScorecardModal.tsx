@@ -39,8 +39,12 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
             pitch: result.pitch,
           }),
         });
-        const data = await res.json();
-        setAiAnalysisText(data.analysis || 'A thrilling tactical contest between fantasy elevens!');
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+          const data = await res.json();
+          setAiAnalysisText(data.analysis || 'A thrilling tactical contest between fantasy elevens!');
+        } else {
+          setAiAnalysisText('A high-octane match where strategic drafting and clutch performances decided the outcome!');
+        }
       } catch {
         setAiAnalysisText('A high-octane match where strategic drafting and clutch performances decided the outcome!');
       } finally {

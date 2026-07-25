@@ -109,9 +109,15 @@ function broadcastRoom(room: RoomState) {
 async function safeFetchJson(url: string, options?: RequestInit): Promise<any | null> {
   try {
     const res = await fetch(url, options);
+    if (!res.ok) return null;
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
-      return await res.json();
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
     }
     return null;
   } catch {
@@ -206,7 +212,13 @@ export async function joinRoom(params: {
     throw new Error('Room not found! Check the 6-digit code and try again.');
   }
 
-  const room: RoomState = JSON.parse(raw);
+  let room: RoomState;
+  try {
+    room = JSON.parse(raw);
+  } catch {
+    throw new Error('Room data is invalid or expired. Please ask Host to create a new room.');
+  }
+
   if (room.p2.isReady && !room.p2.isAi) {
     throw new Error('Room is already full!');
   }
@@ -256,7 +268,13 @@ export async function draftSelectPlayer(code: string, playerId: 'p1' | 'p2', pla
   const raw = localStorage.getItem(`cricket_room_${code}`);
   if (!raw) throw new Error('Room not found');
 
-  const room: RoomState = JSON.parse(raw);
+  let room: RoomState;
+  try {
+    room = JSON.parse(raw);
+  } catch {
+    throw new Error('Room data is invalid');
+  }
+
   if (room.globalDraftedCanonicalIds.includes(player.canonicalId)) {
     throw new Error(`${player.name} has already been drafted!`);
   }
@@ -311,7 +329,13 @@ export async function updateRoomState(code: string, updateData: Partial<RoomStat
   const raw = localStorage.getItem(`cricket_room_${code}`);
   if (!raw) return null;
 
-  const room: RoomState = JSON.parse(raw);
+  let room: RoomState;
+  try {
+    room = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
   Object.assign(room, updateData);
   room.lastUpdated = Date.now();
 

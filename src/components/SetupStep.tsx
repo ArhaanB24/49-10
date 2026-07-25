@@ -253,37 +253,46 @@ export const SetupStep: React.FC<SetupStepProps> = ({
             <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
               Match Format
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setFormat('T20')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  format === 'T20'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <div className="font-bold text-sm">T20 Match</div>
-                <div className={`text-xs mt-1 ${format === 'T20' ? 'text-slate-300' : 'text-slate-500'}`}>
-                  20 Overs • High-Octane Action
-                </div>
-              </button>
+            {playMode === 'ONLINE_ROOM' && roomSubTab === 'join' ? (
+              <div className="p-3.5 rounded-xl bg-slate-100/80 border border-slate-200 text-xs text-slate-700 font-medium flex items-center justify-between">
+                <span>Match Format</span>
+                <span className="font-extrabold text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
+                  Set by Host (P1)
+                </span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormat('T20')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    format === 'T20'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-sm">T20 Match</div>
+                  <div className={`text-xs mt-1 ${format === 'T20' ? 'text-slate-300' : 'text-slate-500'}`}>
+                    20 Overs • High-Octane Action
+                  </div>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setFormat('ODI')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  format === 'ODI'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <div className="font-bold text-sm">ODI Match</div>
-                <div className={`text-xs mt-1 ${format === 'ODI' ? 'text-slate-300' : 'text-slate-500'}`}>
-                  50 Overs • Strategic Endurance
-                </div>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setFormat('ODI')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    format === 'ODI'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-sm">ODI Match</div>
+                  <div className={`text-xs mt-1 ${format === 'ODI' ? 'text-slate-300' : 'text-slate-500'}`}>
+                    50 Overs • Strategic Endurance
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mode Selector */}
@@ -423,32 +432,41 @@ export const SetupStep: React.FC<SetupStepProps> = ({
             <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
               Pitch Condition
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(
-                [
-                  { id: 'BALANCED', label: 'Balanced Pitch', desc: 'Equal assistance to bat & ball' },
-                  { id: 'BATTING', label: 'Batting Pitch', desc: 'Flat surface with high scores' },
-                  { id: 'BOWLING', label: 'Green Pitch', desc: 'Extra seam & pace movement' },
-                  { id: 'SPIN', label: 'Spinning Pitch', desc: 'Dry pitch with turn' },
-                ] as const
-              ).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPitch(p.id)}
-                  className={`p-3 rounded-xl border text-left text-xs transition-all ${
-                    pitch === p.id
-                      ? 'bg-slate-900 text-white border-slate-900 font-bold'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="font-bold">{p.label}</div>
-                  <div className={`text-[10px] mt-0.5 ${pitch === p.id ? 'text-slate-300' : 'text-slate-500'}`}>
-                    {p.desc}
-                  </div>
-                </button>
-              ))}
-            </div>
+            {playMode === 'ONLINE_ROOM' && roomSubTab === 'join' ? (
+              <div className="p-3.5 rounded-xl bg-slate-100/80 border border-slate-200 text-xs text-slate-700 font-medium flex items-center justify-between">
+                <span>Pitch Condition</span>
+                <span className="font-extrabold text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
+                  Set by Host (P1)
+                </span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { id: 'BALANCED', label: 'Balanced Pitch', desc: 'Equal assistance to bat & ball' },
+                    { id: 'BATTING', label: 'Batting Pitch', desc: 'Flat surface with high scores' },
+                    { id: 'BOWLING', label: 'Green Pitch', desc: 'Extra seam & pace movement' },
+                    { id: 'SPIN', label: 'Spinning Pitch', desc: 'Dry pitch with turn' },
+                  ] as const
+                ).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPitch(p.id)}
+                    className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                      pitch === p.id
+                        ? 'bg-slate-900 text-white border-slate-900 font-bold'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-bold">{p.label}</div>
+                    <div className={`text-[10px] mt-0.5 ${pitch === p.id ? 'text-slate-300' : 'text-slate-500'}`}>
+                      {p.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Team Names */}

@@ -80,7 +80,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
           {isUnavailable ? (
             <span className="flex items-center gap-1 text-[10px] bg-rose-50 text-rose-700 px-2 py-1 rounded border border-rose-200 font-semibold shrink-0">
               <ShieldAlert className="w-3 h-3 text-rose-600" />
-              Unavailable
+              {unavailableReason || 'Unavailable'}
             </span>
           ) : isDraftedByMe ? (
             <span className="flex items-center gap-1 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-1 rounded border border-emerald-300 font-semibold shrink-0">

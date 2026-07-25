@@ -121,6 +121,13 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       return;
     }
 
+    if (activeNeeded[player.role] <= 0) {
+      alert(
+        `Role Quota Filled: Your team (${activeTeam.name}) has already drafted all required ${player.role}s for your 11-player squad composition!`
+      );
+      return;
+    }
+
     await onSelectPlayer(player, activeTurn);
 
     const nextP1Count = activeTurn === 'p1' ? p1Team.squad.length + 1 : p1Team.squad.length;
@@ -253,8 +260,12 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           format: 'T20',
         }),
       });
-      const data = await res.json();
-      setAiAdvice(data.advice || 'Pick top rated players matching your missing slots.');
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        setAiAdvice(data.advice || 'Pick top rated players matching your missing slots.');
+      } else {
+        setAiAdvice('Pick top rated players that meet your needed role slots.');
+      }
     } catch {
       setAiAdvice('Pick top rated players that meet your needed role slots.');
     } finally {
@@ -466,21 +477,23 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           const isDraftedByActiveMe = activeTurn === 'p1' ? isDraftedByP1 : isDraftedByP2;
 
           const isNotMyRoomTurn = roomCode && myPlayerRole && activeTurn !== myPlayerRole;
+          const isRoleMaxed = activeNeeded[player.role] <= 0;
 
           let reason = '';
           if (isDraftedByP1) reason = `Drafted by ${p1Team.name}`;
           else if (isDraftedByP2) reason = `Drafted by ${p2Team.name}`;
           else if (isUnavailable) reason = 'Already Drafted';
           else if (isNotMyRoomTurn) reason = "Opponent's Turn";
+          else if (isRoleMaxed) reason = `${player.role} Quota Filled`;
 
           return (
             <PlayerCard
               key={player.id}
               player={player}
-              isUnavailable={isUnavailable || isNotMyRoomTurn}
+              isUnavailable={isUnavailable || isNotMyRoomTurn || isRoleMaxed}
               unavailableReason={reason}
               isDraftedByMe={isDraftedByActiveMe}
-              disabled={(activeTurn === 'p2' && p2Team.isAi) || isNotMyRoomTurn}
+              disabled={(activeTurn === 'p2' && p2Team.isAi) || isNotMyRoomTurn || isRoleMaxed}
               onSelect={() => handlePlayerDraft(player)}
             />
           );

@@ -48,9 +48,12 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Logo & Title */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
-            <Trophy className="w-5 h-5 stroke-[2.5]" />
-          </div>
+          <img
+            src="/src/assets/images/cricket_app_logo_1785001395270.jpg"
+            alt="Cricket Fantasy Logo"
+            referrerPolicy="no-referrer"
+            className="w-10 h-10 rounded-xl object-cover shadow-xs border border-slate-200"
+          />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-black tracking-tight text-slate-900">
