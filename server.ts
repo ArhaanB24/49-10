@@ -253,7 +253,8 @@ app.get("/api/health", (req, res) => {
 
 // API: Create a new room code
 app.post("/api/rooms/create", (req, res) => {
-  const { p1Name, p1Comp, format, pitch, playMode, p2Name, p2Comp, isAi } = req.body;
+  const body = req.body || {};
+  const { p1Name, p1Comp, format, pitch, playMode, p2Name, p2Comp, isAi } = body;
   const code = generateRoomCode();
 
   const room: RoomState = {
@@ -294,6 +295,19 @@ app.post("/api/rooms/create", (req, res) => {
   saveRoomsToDisk();
   syncRoomToCloud(room);
   res.json({ success: true, code, playerId: 'p1', room });
+});
+
+// API: Sync client room state to backend server and cloud KV
+app.post("/api/rooms/cloud-sync", (req, res) => {
+  const room = req.body;
+  if (room && room.code) {
+    const cleanCode = room.code.trim().toUpperCase();
+    rooms.set(cleanCode, room);
+    saveRoomsToDisk();
+    syncRoomToCloud(room);
+    return res.json({ success: true, code: cleanCode });
+  }
+  res.status(400).json({ error: "Invalid room state" });
 });
 
 // API: Join an existing room with room code

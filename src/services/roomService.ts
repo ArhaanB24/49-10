@@ -155,41 +155,27 @@ function decodeRoomData(rawText: string): RoomState | null {
 async function syncRoomToCloud(room: RoomState): Promise<void> {
   if (!room || !room.code) return;
   const cleanCode = room.code.trim().toUpperCase();
-  const hex = encodeRoomData(room);
-  if (!hex) return;
 
-  console.log(`[RoomService] Syncing room ${cleanCode} to Cloud KV Store...`);
-
+  // Route cloud sync via backend server endpoint to avoid browser CORS restrictions
   try {
-    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_KEY}/room_${cleanCode}/${hex}`, {
+    await safeFetchJson('/api/rooms/cloud-sync', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(room),
     });
-    console.log(`[RoomService] Cloud KV Sync for ${cleanCode}: HTTP ${res.status}`);
-  } catch (err) {
-    console.error(`[RoomService] Cloud KV Sync error for ${cleanCode}:`, err);
-  }
+  } catch {}
 }
 
 async function fetchRoomFromCloud(code: string): Promise<RoomState | null> {
   const cleanCode = (code || '').trim().toUpperCase();
   if (!cleanCode) return null;
 
-  console.log(`[RoomService] Fetching room ${cleanCode} from Cloud KV Store...`);
-
   try {
-    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_KEY}/room_${cleanCode}`);
-    if (res.ok) {
-      const rawText = await res.text();
-      console.log(`[RoomService] Cloud KV raw length for ${cleanCode}: ${rawText?.length || 0}`);
-      const room = decodeRoomData(rawText);
-      if (room && room.code) {
-        console.log(`[RoomService] Cloud KV fetch success for ${cleanCode}:`, room.status);
-        return room;
-      }
+    const serverRes = await safeFetchJson(`/api/rooms/${cleanCode}`);
+    if (serverRes && serverRes.success && serverRes.room) {
+      return serverRes.room;
     }
-  } catch (err) {
-    console.warn(`[RoomService] Cloud KV fetch failed for ${cleanCode}:`, err);
-  }
+  } catch {}
 
   return null;
 }
