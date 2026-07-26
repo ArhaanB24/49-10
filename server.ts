@@ -424,6 +424,9 @@ app.post("/api/rooms/:code/update", async (req, res) => {
     p2BattingOrder,
     tossWinner,
     tossDecision,
+    tossState,
+    tossUserChoice,
+    tossCoinResult,
     matchResult,
     format,
     pitch,
@@ -438,9 +441,12 @@ app.post("/api/rooms/:code/update", async (req, res) => {
   if (p2Name) room.p2.name = p2Name;
   if (p1BattingOrder) room.p1.battingOrder = p1BattingOrder;
   if (p2BattingOrder) room.p2.battingOrder = p2BattingOrder;
-  if (tossWinner) room.tossWinner = tossWinner;
-  if (tossDecision) room.tossDecision = tossDecision;
-  if (matchResult) room.matchResult = matchResult;
+  if (tossWinner !== undefined) room.tossWinner = tossWinner;
+  if (tossDecision !== undefined) room.tossDecision = tossDecision;
+  if (tossState !== undefined) room.tossState = tossState;
+  if (tossUserChoice !== undefined) room.tossUserChoice = tossUserChoice;
+  if (tossCoinResult !== undefined) room.tossCoinResult = tossCoinResult;
+  if (matchResult !== undefined) room.matchResult = matchResult;
   if (currentSquadIndex !== undefined) room.currentSquadIndex = currentSquadIndex;
   if (activeDraftTurn) room.activeDraftTurn = activeDraftTurn;
 

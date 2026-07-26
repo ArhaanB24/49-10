@@ -23,6 +23,7 @@ interface SimulationStepProps {
   tossWinner: 'p1' | 'p2';
   tossDecision: 'Bat' | 'Bowl';
   isMuted: boolean;
+  precalculatedResult?: MatchSimulationResult | null;
   onSimulationComplete: (result: MatchSimulationResult) => void;
 }
 
@@ -34,6 +35,7 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
   tossWinner,
   tossDecision,
   isMuted,
+  precalculatedResult,
   onSimulationComplete,
 }) => {
   // Determine 1st and 2nd batting teams
@@ -42,6 +44,10 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
     : (tossWinner === 'p1' ? p2Team : p1Team);
 
   const secondBattingTeam = firstBattingTeam.id === 'p1' ? p2Team : p1Team;
+
+  // Track playback index for precalculated results
+  const [ballIndex1, setBallIndex1] = useState<number>(0);
+  const [ballIndex2, setBallIndex2] = useState<number>(0);
 
   // Innings state
   const [currentInningsNum, setCurrentInningsNum] = useState<1 | 2>(1);
@@ -223,6 +229,13 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
   };
 
   const handleInstantFinish = () => {
+    if (precalculatedResult) {
+      setFirstInnings(precalculatedResult.firstInnings);
+      setSecondInnings(precalculatedResult.secondInnings);
+      onSimulationComplete(precalculatedResult);
+      return;
+    }
+
     let inn1 = { ...firstInnings };
     while (!inn1.isCompleted) {
       const { updatedInnings } = simulateNextBall(inn1, firstBattingTeam, secondBattingTeam, format, pitch);

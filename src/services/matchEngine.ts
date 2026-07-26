@@ -616,3 +616,69 @@ export function runFullSimulation(
     keyHighlights,
   };
 }
+
+export function serializeMatchResult(result: MatchSimulationResult): any {
+  if (!result) return result;
+  const serializeInn = (inn: InningsState) => {
+    if (!inn) return inn;
+    const battingStatsObj: Record<string, PlayerBattingStats> = {};
+    if (inn.battingStats instanceof Map) {
+      inn.battingStats.forEach((v, k) => { battingStatsObj[k] = v; });
+    } else if (inn.battingStats && typeof inn.battingStats === 'object') {
+      Object.assign(battingStatsObj, inn.battingStats);
+    }
+
+    const bowlingStatsObj: Record<string, PlayerBowlingStats> = {};
+    if (inn.bowlingStats instanceof Map) {
+      inn.bowlingStats.forEach((v, k) => { bowlingStatsObj[k] = v; });
+    } else if (inn.bowlingStats && typeof inn.bowlingStats === 'object') {
+      Object.assign(bowlingStatsObj, inn.bowlingStats);
+    }
+
+    return {
+      ...inn,
+      battingStatsObj,
+      bowlingStatsObj,
+    };
+  };
+
+  return {
+    ...result,
+    firstInnings: serializeInn(result.firstInnings),
+    secondInnings: serializeInn(result.secondInnings),
+  };
+}
+
+export function deserializeMatchResult(result: any): MatchSimulationResult {
+  if (!result) return result;
+  const deserializeInn = (inn: any): InningsState => {
+    if (!inn) return inn;
+    const battingStats = new Map<string, PlayerBattingStats>();
+    const rawBat = inn.battingStatsObj || inn.battingStats;
+    if (rawBat instanceof Map) {
+      rawBat.forEach((v, k) => battingStats.set(k, v));
+    } else if (rawBat && typeof rawBat === 'object') {
+      Object.keys(rawBat).forEach((k) => battingStats.set(k, rawBat[k]));
+    }
+
+    const bowlingStats = new Map<string, PlayerBowlingStats>();
+    const rawBowl = inn.bowlingStatsObj || inn.bowlingStats;
+    if (rawBowl instanceof Map) {
+      rawBowl.forEach((v, k) => bowlingStats.set(k, v));
+    } else if (rawBowl && typeof rawBowl === 'object') {
+      Object.keys(rawBowl).forEach((k) => bowlingStats.set(k, rawBowl[k]));
+    }
+
+    return {
+      ...inn,
+      battingStats,
+      bowlingStats,
+    };
+  };
+
+  return {
+    ...result,
+    firstInnings: deserializeInn(result.firstInnings),
+    secondInnings: deserializeInn(result.secondInnings),
+  };
+}

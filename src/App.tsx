@@ -24,6 +24,7 @@ import {
   RoomState,
 } from './services/roomService';
 import { optimizeBattingOrder } from './services/battingOrderService';
+import { runFullSimulation, serializeMatchResult, deserializeMatchResult } from './services/matchEngine';
 
 export const App: React.FC = () => {
   const [stage, setStage] = useState<AppStage>('SETUP');
@@ -56,6 +57,8 @@ export const App: React.FC = () => {
   // Match Simulation Toss and Result
   const [tossWinner, setTossWinner] = useState<'p1' | 'p2'>('p1');
   const [tossDecision, setTossDecision] = useState<'Bat' | 'Bowl'>('Bat');
+  const [serverTossState, setServerTossState] = useState<'IDLE' | 'FLIPPING' | 'DECIDING' | 'CONFIRMED' | null>(null);
+  const [serverCoinResult, setServerCoinResult] = useState<'Heads' | 'Tails' | null>(null);
   const [matchResult, setMatchResult] = useState<MatchSimulationResult | null>(null);
 
   // Online Room Code State
@@ -173,7 +176,9 @@ export const App: React.FC = () => {
       if (r.turnStartTime) setServerTurnStartTime(r.turnStartTime);
       if (r.tossWinner) setTossWinner(r.tossWinner);
       if (r.tossDecision) setTossDecision(r.tossDecision);
-      if (r.matchResult) setMatchResult(r.matchResult);
+      if (r.tossState) setServerTossState(r.tossState);
+      if (r.tossCoinResult) setServerCoinResult(r.tossCoinResult);
+      if (r.matchResult) setMatchResult(deserializeMatchResult(r.matchResult));
     };
 
     // Listen to real-time BroadcastChannel & storage events
@@ -429,10 +434,16 @@ export const App: React.FC = () => {
     setTossDecision(decision);
 
     if (roomCode) {
+      const simResult = runFullSimulation(p1Team, p2Team, format, pitch, winner, decision);
+      const serialized = serializeMatchResult(simResult);
+      setMatchResult(simResult);
+
       await updateRoomState(roomCode, {
         status: 'SIMULATION',
         tossWinner: winner,
         tossDecision: decision,
+        tossState: 'CONFIRMED',
+        matchResult: serialized,
       });
     }
     setStage('SIMULATION');
@@ -442,9 +453,10 @@ export const App: React.FC = () => {
   const handleSimulationComplete = async (result: MatchSimulationResult) => {
     setMatchResult(result);
     if (roomCode) {
+      const serialized = serializeMatchResult(result);
       await updateRoomState(roomCode, {
         status: 'SCORECARD',
-        matchResult: result,
+        matchResult: serialized,
       });
     }
     setStage('SCORECARD');
@@ -514,6 +526,12 @@ export const App: React.FC = () => {
           <TeamSummaryStep
             p1Team={p1Team}
             p2Team={p2Team}
+            roomCode={roomCode}
+            myPlayerRole={myPlayerRole}
+            serverTossWinner={tossWinner}
+            serverTossDecision={tossDecision}
+            serverTossState={serverTossState}
+            serverCoinResult={serverCoinResult}
             onUpdateP1BattingOrder={(order) => {
               setP1Team({ ...p1Team, battingOrder: order });
               if (roomCode) updateRoomState(roomCode, { p1BattingOrder: order });
@@ -535,6 +553,7 @@ export const App: React.FC = () => {
             tossWinner={tossWinner}
             tossDecision={tossDecision}
             isMuted={isMuted}
+            precalculatedResult={matchResult}
             onSimulationComplete={handleSimulationComplete}
           />
         )}

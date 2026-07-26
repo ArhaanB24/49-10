@@ -31,6 +31,9 @@ export interface RoomState {
   turnStartTime: number;
   tossWinner: 'p1' | 'p2' | null;
   tossDecision: 'Bat' | 'Bowl' | null;
+  tossState?: 'IDLE' | 'FLIPPING' | 'DECIDING' | 'CONFIRMED' | null;
+  tossUserChoice?: 'Heads' | 'Tails' | null;
+  tossCoinResult?: 'Heads' | 'Tails' | null;
   matchResult: any | null;
   lastUpdated: number;
 }
