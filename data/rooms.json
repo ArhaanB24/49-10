@@ -1,0 +1,45 @@
+{
+  "551511": {
+    "code": "551511",
+    "status": "SETUP",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Strikers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Waiting for Player 2...",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": false
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      15
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 15,
+    "turnStartTime": 1785081338259,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785081338259
+  }
+}
