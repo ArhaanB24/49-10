@@ -108,7 +108,7 @@ function broadcastRoom(room: RoomState) {
 }
 
 // Cloud Key-Value Store fallback for cross-device sync when Express server is not reachable (e.g. static hosts like Vercel)
-const CLOUD_APP_KEY = 'cricket_v3_app';
+const CLOUD_APP_KEY = 'bz9gzwf9';
 
 function encodeRoomData(room: RoomState): string {
   try {
@@ -156,7 +156,7 @@ async function syncRoomToCloud(room: RoomState): Promise<void> {
   if (!room || !room.code) return;
   const cleanCode = room.code.trim().toUpperCase();
 
-  // Route cloud sync via backend server endpoint to avoid browser CORS restrictions
+  // 1. Sync to backend Express server
   try {
     await safeFetchJson('/api/rooms/cloud-sync', {
       method: 'POST',
@@ -164,16 +164,69 @@ async function syncRoomToCloud(room: RoomState): Promise<void> {
       body: JSON.stringify(room),
     });
   } catch {}
+
+  // 2. Direct client backup to Immanuel KeyValue Cloud Store with key bz9gzwf9 using chunking
+  const hex = encodeRoomData(room);
+  if (hex) {
+    const chunkSize = 800;
+    const numChunks = Math.ceil(hex.length / chunkSize);
+    try {
+      await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_KEY}/room_${cleanCode}_meta?Value=${numChunks}`, { method: 'POST' });
+      const chunkPromises = [];
+      for (let i = 0; i < numChunks; i++) {
+        const chunk = hex.substring(i * chunkSize, (i + 1) * chunkSize);
+        chunkPromises.push(
+          fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_KEY}/room_${cleanCode}_${i}?Value=${chunk}`, { method: 'POST' })
+        );
+      }
+      await Promise.all(chunkPromises);
+    } catch {}
+  }
 }
 
 async function fetchRoomFromCloud(code: string): Promise<RoomState | null> {
   const cleanCode = (code || '').trim().toUpperCase();
   if (!cleanCode) return null;
 
+  // 1. Try backend server
   try {
     const serverRes = await safeFetchJson(`/api/rooms/${cleanCode}`);
     if (serverRes && serverRes.success && serverRes.room) {
       return serverRes.room;
+    }
+  } catch {}
+
+  // 2. Direct chunked fetch from Immanuel KeyValue Cloud Store
+  try {
+    const metaRes = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_KEY}/room_${cleanCode}_meta`);
+    if (metaRes.ok) {
+      const metaText = (await metaRes.text()).replace(/"/g, '').trim();
+      const count = parseInt(metaText);
+      if (count && count > 0) {
+        const chunkPromises = [];
+        for (let i = 0; i < count; i++) {
+          chunkPromises.push(
+            fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_KEY}/room_${cleanCode}_${i}`).then(r => r.text())
+          );
+        }
+        const chunks = await Promise.all(chunkPromises);
+        let combinedHex = '';
+        for (const c of chunks) {
+          combinedHex += (c || '').replace(/"/g, '').trim();
+        }
+        const room = decodeRoomData(combinedHex);
+        if (room && room.code) return room;
+      }
+    }
+  } catch {}
+
+  // 3. Fallback to single key
+  try {
+    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_KEY}/room_${cleanCode}`);
+    if (res.ok) {
+      const rawText = await res.text();
+      const room = decodeRoomData(rawText);
+      if (room && room.code) return room;
     }
   } catch {}
 
@@ -328,7 +381,10 @@ export async function getRoom(code: string): Promise<RoomState | null> {
     return serverRes.room;
   }
 
-  // 2. Fallback to LocalStorage
+  // 2. Try Immanuel Cloud KV Store
+  const cloudRoom = await fetchRoomFromCloud(cleanCode);
+
+  // 3. Fallback to LocalStorage
   let localRoom: RoomState | null = null;
   if (typeof window !== 'undefined') {
     const raw = localStorage.getItem(`cricket_room_${cleanCode}`);
@@ -339,8 +395,23 @@ export async function getRoom(code: string): Promise<RoomState | null> {
     }
   }
 
+  if (cloudRoom && localRoom) {
+    const newest = (cloudRoom.lastUpdated || 0) >= (localRoom.lastUpdated || 0) ? cloudRoom : localRoom;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`cricket_room_${cleanCode}`, JSON.stringify(newest));
+    }
+    return newest;
+  }
+
+  if (cloudRoom) {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`cricket_room_${cleanCode}`, JSON.stringify(cloudRoom));
+    }
+    return cloudRoom;
+  }
+
   if (localRoom) {
-    // Sync local room back to Express backend server if server missed it
+    // Sync local room back to cloud and server
     syncRoomToCloud(localRoom);
     return localRoom;
   }

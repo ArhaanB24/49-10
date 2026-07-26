@@ -85,6 +85,135 @@
     "matchResult": null,
     "lastUpdated": 1785091013219
   },
+  "340987": {
+    "code": "340987",
+    "status": "DRAFT",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Strikers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Super Kings XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": true
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      5
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 5,
+    "turnStartTime": 1785091981306,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785091981306
+  },
+  "367534": {
+    "code": "367534",
+    "status": "SETUP",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Strikers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Waiting for Player 2...",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": false
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      10
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 10,
+    "turnStartTime": 1785092366568,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785092366568
+  },
+  "492750": {
+    "code": "492750",
+    "status": "SETUP",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Strikers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Waiting for Player 2...",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": false
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      2
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 2,
+    "turnStartTime": 1785092026259,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785092026259
+  },
   "551511": {
     "code": "551511",
     "status": "SETUP",
@@ -127,5 +256,134 @@
     "tossDecision": null,
     "matchResult": null,
     "lastUpdated": 1785081338259
+  },
+  "623083": {
+    "code": "623083",
+    "status": "SETUP",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Strikers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Waiting for Player 2...",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": false
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      10
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 10,
+    "turnStartTime": 1785092394819,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785092394819
+  },
+  "789946": {
+    "code": "789946",
+    "status": "SETUP",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Strikers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Waiting for Player 2...",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": false
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      10
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 10,
+    "turnStartTime": 1785092102048,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785092102048
+  },
+  "829882": {
+    "code": "829882",
+    "status": "DRAFT",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Strikers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Super Kings XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": true
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      8
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 8,
+    "turnStartTime": 1785091389618,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785091389618
   }
 }

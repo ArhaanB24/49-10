@@ -54,7 +54,7 @@ interface RoomState {
 }
 
 // Cloud Key-Value Store fallback for cross-device room persistence
-const CLOUD_APP_KEY = 'cricket_v3_app';
+const CLOUD_APP_KEY = 'bz9gzwf9';
 
 function encodeRoomData(room: RoomState): string {
   try {
@@ -104,13 +104,23 @@ async function syncRoomToCloud(room: RoomState): Promise<void> {
   const hex = encodeRoomData(room);
   if (!hex) return;
 
-  console.log(`[Server] Syncing room ${cleanCode} to Cloud KV Store...`);
+  const chunkSize = 800;
+  const numChunks = Math.ceil(hex.length / chunkSize);
 
   try {
-    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_KEY}/room_${cleanCode}/${hex}`, {
-      method: 'POST',
-    });
-    console.log(`[Server] Cloud KV Sync for ${cleanCode}: HTTP ${res.status}`);
+    // 1. Store chunk count metadata
+    await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_KEY}/room_${cleanCode}_meta?Value=${numChunks}`, { method: 'POST' });
+
+    // 2. Store hex chunks concurrently
+    const chunkPromises = [];
+    for (let i = 0; i < numChunks; i++) {
+      const chunk = hex.substring(i * chunkSize, (i + 1) * chunkSize);
+      chunkPromises.push(
+        fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_KEY}/room_${cleanCode}_${i}?Value=${chunk}`, { method: 'POST' })
+      );
+    }
+    await Promise.all(chunkPromises);
+    console.log(`[Server] Cloud KV Sync success for ${cleanCode} (${numChunks} chunks, total ${hex.length} hex chars)`);
   } catch (err) {
     console.error(`[Server] Cloud KV Sync error for ${cleanCode}:`, err);
   }
@@ -120,22 +130,43 @@ async function fetchRoomFromCloud(code: string): Promise<RoomState | null> {
   const cleanCode = (code || '').trim().toUpperCase();
   if (!cleanCode) return null;
 
-  console.log(`[Server] Fetching room ${cleanCode} from Cloud KV Store...`);
+  try {
+    const metaRes = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_KEY}/room_${cleanCode}_meta`);
+    if (metaRes.ok) {
+      const metaText = (await metaRes.text()).replace(/"/g, '').trim();
+      const count = parseInt(metaText);
+      if (count && count > 0) {
+        const chunkPromises = [];
+        for (let i = 0; i < count; i++) {
+          chunkPromises.push(
+            fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_KEY}/room_${cleanCode}_${i}`).then(r => r.text())
+          );
+        }
+        const chunks = await Promise.all(chunkPromises);
+        let combinedHex = '';
+        for (const c of chunks) {
+          combinedHex += (c || '').replace(/"/g, '').trim();
+        }
+        const room = decodeRoomData(combinedHex);
+        if (room && room.code) {
+          console.log(`[Server] Chunked Cloud KV fetch success for ${cleanCode}:`, room.status);
+          return room;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Server] Chunked Cloud KV fetch failed for ${cleanCode}:`, err);
+  }
 
+  // Fallback to single key if legacy
   try {
     const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_KEY}/room_${cleanCode}`);
     if (res.ok) {
       const rawText = await res.text();
-      console.log(`[Server] Cloud KV raw length for ${cleanCode}: ${rawText?.length || 0}`);
       const room = decodeRoomData(rawText);
-      if (room && room.code) {
-        console.log(`[Server] Cloud KV fetch success for ${cleanCode}:`, room.status);
-        return room;
-      }
+      if (room && room.code) return room;
     }
-  } catch (err) {
-    console.warn(`[Server] Cloud KV fetch failed for ${cleanCode}:`, err);
-  }
+  } catch {}
 
   return null;
 }
@@ -252,7 +283,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // API: Create a new room code
-app.post("/api/rooms/create", (req, res) => {
+app.post("/api/rooms/create", async (req, res) => {
   const body = req.body || {};
   const { p1Name, p1Comp, format, pitch, playMode, p2Name, p2Comp, isAi } = body;
   const code = generateRoomCode();
@@ -293,18 +324,18 @@ app.post("/api/rooms/create", (req, res) => {
 
   rooms.set(code, room);
   saveRoomsToDisk();
-  syncRoomToCloud(room);
+  await syncRoomToCloud(room);
   res.json({ success: true, code, playerId: 'p1', room });
 });
 
 // API: Sync client room state to backend server and cloud KV
-app.post("/api/rooms/cloud-sync", (req, res) => {
+app.post("/api/rooms/cloud-sync", async (req, res) => {
   const room = req.body;
   if (room && room.code) {
     const cleanCode = room.code.trim().toUpperCase();
     rooms.set(cleanCode, room);
     saveRoomsToDisk();
-    syncRoomToCloud(room);
+    await syncRoomToCloud(room);
     return res.json({ success: true, code: cleanCode });
   }
   res.status(400).json({ error: "Invalid room state" });
@@ -333,7 +364,7 @@ app.post("/api/rooms/join", async (req, res) => {
   room.lastUpdated = Date.now();
 
   saveRoomsToDisk();
-  syncRoomToCloud(room);
+  await syncRoomToCloud(room);
   res.json({ success: true, code: cleanCode, playerId: 'p2', room });
 });
 
@@ -385,7 +416,7 @@ app.post("/api/rooms/:code/update", async (req, res) => {
 
   room.lastUpdated = Date.now();
   saveRoomsToDisk();
-  syncRoomToCloud(room);
+  await syncRoomToCloud(room);
   res.json({ success: true, room });
 });
 
@@ -443,7 +474,7 @@ app.post("/api/rooms/:code/draft/select", async (req, res) => {
 
   room.lastUpdated = Date.now();
   saveRoomsToDisk();
-  syncRoomToCloud(room);
+  await syncRoomToCloud(room);
   res.json({ success: true, room });
 });
 
