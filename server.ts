@@ -181,7 +181,16 @@ async function getOrFetchRoom(code: string): Promise<RoomState | null> {
     return room;
   }
 
-  console.log(`[Server] Room ${cleanCode} NOT in memory, attempting Cloud KV fetch...`);
+  // Reload from disk in case saved by file system sync
+  const diskMap = loadRoomsFromDisk();
+  room = diskMap.get(cleanCode);
+  if (room) {
+    console.log(`[Server] Room ${cleanCode} loaded from disk into server memory`);
+    rooms.set(cleanCode, room);
+    return room;
+  }
+
+  console.log(`[Server] Room ${cleanCode} NOT in memory or disk, attempting Cloud KV fetch...`);
   room = await fetchRoomFromCloud(cleanCode);
   if (room) {
     console.log(`[Server] Room ${cleanCode} loaded from Cloud KV into server memory`);
@@ -366,6 +375,27 @@ app.post("/api/rooms/join", async (req, res) => {
   saveRoomsToDisk();
   await syncRoomToCloud(room);
   res.json({ success: true, code: cleanCode, playerId: 'p2', room });
+});
+
+// API: Get list of active waiting rooms (for easy joining)
+app.get("/api/rooms/active/list", (req, res) => {
+  const diskMap = loadRoomsFromDisk();
+  diskMap.forEach((v, k) => { if (!rooms.has(k)) rooms.set(k, v); });
+
+  const activeRooms: Array<{ code: string; p1Name: string; format: string; createdAt: number }> = [];
+  rooms.forEach((room, code) => {
+    if (room && room.status === 'SETUP' && room.p2 && !room.p2.isReady) {
+      activeRooms.push({
+        code,
+        p1Name: room.p1?.name || 'Player 1 XI',
+        format: room.format || 'T20',
+        createdAt: room.lastUpdated || Date.now(),
+      });
+    }
+  });
+
+  activeRooms.sort((a, b) => b.createdAt - a.createdAt);
+  res.json({ success: true, rooms: activeRooms.slice(0, 5) });
 });
 
 // API: Get room state by code (polling endpoint)

@@ -45,9 +45,31 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   const [joinError, setJoinError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const [activeRooms, setActiveRooms] = useState<Array<{ code: string; p1Name: string; format: string }>>([]);
 
   const [p1Name, setP1Name] = useState<string>('Royal Strikers XI');
   const [p2Name, setP2Name] = useState<string>('Cyber Legends XI');
+
+  // Fetch active waiting rooms from backend server
+  const fetchActiveRooms = async () => {
+    try {
+      const res = await fetch('/api/rooms/active/list');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.rooms)) {
+          setActiveRooms(data.rooms);
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (playMode === 'ONLINE_ROOM' && roomSubTab === 'join') {
+      fetchActiveRooms();
+      const interval = setInterval(fetchActiveRooms, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [playMode, roomSubTab]);
 
   // Check URL query string or pathname for room code
   useEffect(() => {
@@ -417,11 +439,43 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                       maxLength={6}
                       placeholder="e.g. 839210"
                       value={inputRoomCode}
-                      onChange={(e) => setInputRoomCode(e.target.value.toUpperCase())}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                        setInputRoomCode(cleaned);
+                        if (joinError) setJoinError(null);
+                      }}
                       className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-center text-lg font-black tracking-widest text-slate-900 focus:outline-none focus:border-slate-500 uppercase shrink-0 w-48 shadow-2xs"
                     />
                     <span className="text-xs text-slate-500 font-medium">Ask Host (P1) for room code or link</span>
                   </div>
+
+                  {activeRooms.length > 0 && (
+                    <div className="pt-2">
+                      <span className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wider">
+                        ⚡ Active Waiting Rooms On Server:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {activeRooms.map((room) => (
+                          <button
+                            key={room.code}
+                            type="button"
+                            onClick={() => {
+                              setInputRoomCode(room.code);
+                              if (joinError) setJoinError(null);
+                            }}
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
+                              inputRoomCode === room.code
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white hover:bg-emerald-50 text-slate-800 border-emerald-200'
+                            }`}
+                          >
+                            <span className="font-mono text-sm tracking-wider">{room.code}</span>
+                            <span className="text-[10px] opacity-80 font-normal">({room.p1Name} • {room.format})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {joinError && (
                     <div className="p-3 rounded-xl bg-rose-100 border border-rose-300 text-rose-800 text-xs font-semibold flex items-center gap-2">

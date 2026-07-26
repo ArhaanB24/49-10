@@ -42,6 +42,49 @@
     "matchResult": null,
     "lastUpdated": 1785090735486
   },
+  "195586": {
+    "code": "195586",
+    "status": "DRAFT",
+    "format": "T20",
+    "pitch": "BATTING",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Royal Challengers XI",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Kolkata Knight Riders",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": true
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      9
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 9,
+    "turnStartTime": 1785092732987,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785092732987
+  },
   "287075": {
     "code": "287075",
     "status": "SETUP",
@@ -385,5 +428,48 @@
     "tossDecision": null,
     "matchResult": null,
     "lastUpdated": 1785091389618
+  },
+  "880596": {
+    "code": "880596",
+    "status": "DRAFT",
+    "format": "T20",
+    "pitch": "BALANCED",
+    "playMode": "ONLINE_ROOM",
+    "p1": {
+      "name": "Mumbai Indians",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isReady": true
+    },
+    "p2": {
+      "name": "Chennai Super Kings",
+      "squad": [],
+      "battingOrder": [],
+      "composition": {
+        "batsmen": 5,
+        "allRounders": 2,
+        "wicketKeepers": 1,
+        "bowlers": 3
+      },
+      "isAi": false,
+      "isReady": true
+    },
+    "globalDraftedCanonicalIds": [],
+    "usedSquadIndices": [
+      16
+    ],
+    "activeDraftTurn": "p1",
+    "currentSquadIndex": 16,
+    "turnStartTime": 1785092627920,
+    "tossWinner": null,
+    "tossDecision": null,
+    "matchResult": null,
+    "lastUpdated": 1785092627920
   }
 }

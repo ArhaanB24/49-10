@@ -323,7 +323,7 @@ export async function joinRoom(params: {
   p2Name: string;
   p2Comp: any;
 }): Promise<{ success: boolean; code: string; playerId: 'p2'; room: RoomState }> {
-  const cleanCode = (params.code || '').trim().toUpperCase();
+  const cleanCode = (params.code || '').replace(/[^A-Za-z0-9]/g, '').trim().toUpperCase();
 
   // 1. Try Express backend server first
   const serverRes = await safeFetchJson('/api/rooms/join', {
@@ -337,16 +337,16 @@ export async function joinRoom(params: {
       broadcastRoom(serverRes.room);
       return serverRes;
     }
-    // Handle error messages from backend (e.g. room full)
-    if (serverRes.error && serverRes.status !== 404 && !serverRes._httpError) {
-      throw new Error(serverRes.error);
+    // Handle error messages from backend
+    if (serverRes.error && serverRes.status === 409) {
+      throw new Error(serverRes.error || 'Room is already full!');
     }
   }
 
   // 2. Client-side fallback join
   let room = await getRoom(cleanCode);
   if (!room) {
-    throw new Error('Room not found! Check the 6-digit code and try again.');
+    throw new Error(`Room code '${cleanCode}' not found. Please check the code or ask Host (P1) to click 'Host Online Room' to generate it.`);
   }
 
   if (room.p2.isReady && !room.p2.isAi) {
