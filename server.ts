@@ -54,80 +54,82 @@ interface RoomState {
 }
 
 // Cloud Key-Value Store fallback for cross-device room persistence
-const CLOUD_APP_ID = 'cricket_fantasy_v2_rooms';
-
-function encodeRoomData(room: RoomState): string {
-  try {
-    const json = JSON.stringify(room);
-    return Buffer.from(json, 'utf-8').toString('hex');
-  } catch (err) {
-    console.error('[Server] encodeRoomData error:', err);
-    return '';
-  }
-}
-
-function decodeRoomData(str: string): RoomState | null {
-  try {
-    if (!str) return null;
-    let cleanStr = str.trim();
-    if (cleanStr.startsWith('"') && cleanStr.endsWith('"')) {
-      cleanStr = cleanStr.slice(1, -1);
-    }
-    cleanStr = cleanStr.trim();
-    if (!cleanStr || cleanStr === 'null' || cleanStr === '""' || cleanStr === 'Value not found') return null;
-
-    if (/^[0-9a-fA-F]+$/.test(cleanStr) && cleanStr.length % 2 === 0) {
-      const json = Buffer.from(cleanStr, 'hex').toString('utf-8');
-      const room = JSON.parse(json);
-      if (room && room.code) return room;
-    }
-
-    try {
-      const json = decodeURIComponent(cleanStr);
-      const room = JSON.parse(json);
-      if (room && room.code) return room;
-    } catch {}
-  } catch (err) {
-    console.error('[Server] decodeRoomData error:', err);
-  }
-  return null;
+function roomCodeToUuid(code: string): string {
+  const clean = (code || '').trim().toUpperCase().padStart(6, '0');
+  return `${clean.slice(0, 6)}00-0000-4000-8000-000000000000`;
 }
 
 async function syncRoomToCloud(room: RoomState): Promise<void> {
+  if (!room || !room.code) return;
+  const cleanCode = room.code.trim().toUpperCase();
+  const uuid = roomCodeToUuid(cleanCode);
+  const jsonBody = JSON.stringify(room);
+
+  console.log(`[Server] Syncing room ${cleanCode} to Cloud Stores...`);
+
+  // 1. JsonBlob Sync
   try {
-    console.log(`[Server] Syncing room ${room.code} to Cloud KV Store...`);
-    const val = encodeRoomData(room);
-    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${CLOUD_APP_ID}/${room.code}/${val}`, {
-      method: 'POST',
+    const res = await fetch(`https://jsonblob.com/api/jsonBlob/${uuid}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: jsonBody,
     });
-    console.log(`[Server] Cloud KV Sync response for ${room.code}: HTTP ${res.status}`);
+    console.log(`[Server] JsonBlob sync for ${cleanCode}: HTTP ${res.status}`);
   } catch (err) {
-    console.error(`[Server] Cloud sync error for room ${room.code}:`, err);
+    console.error(`[Server] JsonBlob sync error for ${cleanCode}:`, err);
+  }
+
+  // 2. KVDB Sync
+  try {
+    const res = await fetch(`https://kvdb.io/c7b3e81f9a2d_cricket/${cleanCode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: jsonBody,
+    });
+    console.log(`[Server] KVDB sync for ${cleanCode}: HTTP ${res.status}`);
+  } catch (err) {
+    console.error(`[Server] KVDB sync error for ${cleanCode}:`, err);
   }
 }
 
 async function fetchRoomFromCloud(code: string): Promise<RoomState | null> {
+  const cleanCode = (code || '').trim().toUpperCase();
+  if (!cleanCode) return null;
+  const uuid = roomCodeToUuid(cleanCode);
+
+  console.log(`[Server] Fetching room ${cleanCode} from Cloud Stores...`);
+
+  // 1. JsonBlob
   try {
-    const cleanCode = (code || '').trim().toUpperCase();
-    if (!cleanCode) return null;
-    console.log(`[Server] Fetching room ${cleanCode} from Cloud KV Store...`);
-    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${CLOUD_APP_ID}/${cleanCode}`);
+    const res = await fetch(`https://jsonblob.com/api/jsonBlob/${uuid}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
     if (res.ok) {
-      const text = await res.text();
-      console.log(`[Server] Raw Cloud KV response length for ${cleanCode}: ${text?.length || 0}`);
-      const room = decodeRoomData(text);
-      if (room) {
-        console.log(`[Server] Successfully decoded room ${cleanCode} from Cloud KV Store:`, room.status);
-      } else {
-        console.warn(`[Server] Cloud KV response text for ${cleanCode} could not be decoded as room`);
+      const room = await res.json();
+      if (room && room.code) {
+        console.log(`[Server] JsonBlob fetch success for ${cleanCode}:`, room.status);
+        return room;
       }
-      return room;
-    } else {
-      console.warn(`[Server] Cloud KV fetch failed with HTTP ${res.status} for ${cleanCode}`);
     }
   } catch (err) {
-    console.error(`[Server] Cloud fetch error for ${code}:`, err);
+    console.warn(`[Server] JsonBlob fetch failed for ${cleanCode}:`, err);
   }
+
+  // 2. KVDB
+  try {
+    const res = await fetch(`https://kvdb.io/c7b3e81f9a2d_cricket/${cleanCode}`);
+    if (res.ok) {
+      const room = await res.json();
+      if (room && room.code) {
+        console.log(`[Server] KVDB fetch success for ${cleanCode}:`, room.status);
+        return room;
+      }
+    }
+  } catch (err) {
+    console.warn(`[Server] KVDB fetch failed for ${cleanCode}:`, err);
+  }
+
   return null;
 }
 
@@ -561,3 +563,5 @@ async function startServer() {
 }
 
 startServer();
+
+export default app;
