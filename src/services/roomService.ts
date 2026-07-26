@@ -211,8 +211,6 @@ export async function createRoom(params: {
   pitch: string;
   playMode: 'ONLINE_ROOM';
 }): Promise<{ success: boolean; code: string; playerId: 'p1'; room: RoomState }> {
-  console.log('[RoomService] Creating room with params:', params);
-
   // 1. Try Express backend server first
   const serverRes = await safeFetchJson('/api/rooms/create', {
     method: 'POST',
@@ -220,15 +218,12 @@ export async function createRoom(params: {
     body: JSON.stringify(params),
   });
 
-  if (serverRes && serverRes.success && serverRes.code) {
-    console.log('[RoomService] Server created room successfully code:', serverRes.code);
+  if (serverRes && serverRes.success && serverRes.code && serverRes.room) {
     broadcastRoom(serverRes.room);
-    await syncRoomToCloud(serverRes.room);
     return serverRes;
   }
 
-  console.warn('[RoomService] Server create failed or unreachable, creating fallback room locally');
-  // 2. Fallback to LocalStorage + Cloud KV Store + BroadcastChannel client-side room
+  // 2. Fallback local room creation if server endpoint unreachable during dev rebuilds
   const code = generateRoomCode();
   const room: RoomState = {
     code,
@@ -264,7 +259,7 @@ export async function createRoom(params: {
 
   room.currentSquadIndex = drawUnusedSquadIndex(room.usedSquadIndices);
   broadcastRoom(room);
-  await syncRoomToCloud(room);
+  syncRoomToCloud(room); // Instantly persist to backend Express server
 
   return { success: true, code, playerId: 'p1', room };
 }
@@ -276,7 +271,6 @@ export async function joinRoom(params: {
   p2Comp: any;
 }): Promise<{ success: boolean; code: string; playerId: 'p2'; room: RoomState }> {
   const cleanCode = (params.code || '').trim().toUpperCase();
-  console.log(`[RoomService] Joining room code: "${cleanCode}" for P2: "${params.p2Name}"`);
 
   // 1. Try Express backend server first
   const serverRes = await safeFetchJson('/api/rooms/join', {
@@ -287,34 +281,25 @@ export async function joinRoom(params: {
 
   if (serverRes) {
     if (serverRes.success && serverRes.room) {
-      console.log(`[RoomService] Express backend joinRoom succeeded for ${cleanCode}`);
       broadcastRoom(serverRes.room);
-      await syncRoomToCloud(serverRes.room);
       return serverRes;
     }
-    console.warn(`[RoomService] Express backend joinRoom returned non-success:`, serverRes);
-    // Only throw non-404 errors (like "Room is already full!")
+    // Handle error messages from backend (e.g. room full)
     if (serverRes.error && serverRes.status !== 404 && !serverRes._httpError) {
       throw new Error(serverRes.error);
     }
-  } else {
-    console.warn(`[RoomService] Express backend joinRoom returned null/non-JSON response`);
   }
 
-  // 2. Try getting room from LocalStorage or Cloud KV Store
-  console.log(`[RoomService] Falling back to getRoom client-side for code: ${cleanCode}`);
+  // 2. Client-side fallback join
   let room = await getRoom(cleanCode);
   if (!room) {
-    console.error(`[RoomService] Room ${cleanCode} NOT FOUND anywhere!`);
     throw new Error('Room not found! Check the 6-digit code and try again.');
   }
 
   if (room.p2.isReady && !room.p2.isAi) {
-    console.warn(`[RoomService] Room ${cleanCode} is already full!`);
     throw new Error('Room is already full!');
   }
 
-  console.log(`[RoomService] Found room ${cleanCode} via fallback! Updating P2 state...`);
   room.p2.name = params.p2Name || 'Player 2 XI';
   if (params.p2Comp) room.p2.composition = params.p2Comp;
   room.p2.isReady = true;
@@ -324,12 +309,7 @@ export async function joinRoom(params: {
   room.lastUpdated = Date.now();
 
   broadcastRoom(room);
-  await syncRoomToCloud(room);
-  safeFetchJson(`/api/rooms/${cleanCode}/update`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(room),
-  }).catch(() => {});
+  syncRoomToCloud(room);
 
   return { success: true, code: cleanCode, playerId: 'p2', room };
 }
@@ -339,46 +319,32 @@ export async function getRoom(code: string): Promise<RoomState | null> {
   const cleanCode = (code || '').trim().toUpperCase();
   if (!cleanCode) return null;
 
-  console.log(`[RoomService] getRoom requested for: "${cleanCode}"`);
-
-  // 1. Try Express backend
+  // 1. Try Express backend server
   const serverRes = await safeFetchJson(`/api/rooms/${cleanCode}`);
   if (serverRes && serverRes.success && serverRes.room) {
-    console.log(`[RoomService] Room ${cleanCode} retrieved from Express server`);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`cricket_room_${cleanCode}`, JSON.stringify(serverRes.room));
+    }
     return serverRes.room;
   }
 
-  // 2. Try LocalStorage
+  // 2. Fallback to LocalStorage
   let localRoom: RoomState | null = null;
-  const raw = localStorage.getItem(`cricket_room_${cleanCode}`);
-  if (raw) {
-    try {
-      localRoom = JSON.parse(raw);
-      console.log(`[RoomService] Room ${cleanCode} found in LocalStorage`);
-    } catch {}
-  }
-
-  // 3. Try Cloud KV store for cross-device sync
-  const cloudRoom = await fetchRoomFromCloud(cleanCode);
-
-  if (cloudRoom && localRoom) {
-    const newest = (cloudRoom.lastUpdated || 0) >= (localRoom.lastUpdated || 0) ? cloudRoom : localRoom;
-    console.log(`[RoomService] Returning newest room for ${cleanCode} (cloud ts: ${cloudRoom.lastUpdated}, local ts: ${localRoom.lastUpdated})`);
-    return newest;
-  }
-
-  if (cloudRoom) {
-    console.log(`[RoomService] Room ${cleanCode} retrieved from Cloud KV Store`);
-    localStorage.setItem(`cricket_room_${cleanCode}`, JSON.stringify(cloudRoom));
-    return cloudRoom;
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(`cricket_room_${cleanCode}`);
+    if (raw) {
+      try {
+        localRoom = JSON.parse(raw);
+      } catch {}
+    }
   }
 
   if (localRoom) {
-    console.log(`[RoomService] Room ${cleanCode} retrieved from LocalStorage`);
+    // Sync local room back to Express backend server if server missed it
+    syncRoomToCloud(localRoom);
     return localRoom;
   }
 
-  console.warn(`[RoomService] Room ${cleanCode} not found in Express server, LocalStorage, or Cloud KV Store`);
   return null;
 }
 
