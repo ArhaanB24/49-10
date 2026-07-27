@@ -368,6 +368,13 @@ export function simulateNextBall(
       singleProb = 0.43;
     }
 
+    // Adjust six probability directly based on batsman's strike rate
+    const playerSR = strikerPlayer.strikeRate && strikerPlayer.strikeRate > 0 ? strikerPlayer.strikeRate : 125;
+    // Benchmark strike rate is ~130. High SR power-hitters (e.g. 150-200+) get a boost in six probability,
+    // while anchor or lower SR players (e.g. 80-110) have lower six chance.
+    const srFactor = playerSR / 130;
+    sixProb = Math.min(0.35, Math.max(0.0005, sixProb * Math.pow(srFactor, 1.3)));
+
     if (scoreRand < sixProb) {
       runs = 6;
     } else if (scoreRand < sixProb + fourProb) {

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserTeam } from '../types';
 import { calculateTeamPower } from '../services/matchEngine';
 import { FieldPitchView } from './FieldPitchView';
 import { validateMovePlayer, optimizeBattingOrder } from '../services/battingOrderService';
+import { updateRoomState } from '../services/roomService';
 import { Trophy, Swords, ArrowUp, ArrowDown, Play, Coins, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface TeamSummaryStepProps {
