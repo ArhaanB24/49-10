@@ -339,6 +339,33 @@ export const App: React.FC = () => {
 
   // Select Player in Draft
   const handleSelectPlayer = async (player: Player, activePlayerId: 'p1' | 'p2') => {
+    // Synchronous optimistic state update for instant UX feedback
+    setGlobalDraftedCanonicalIds((prev) => {
+      const next = new Set(prev);
+      next.add(player.canonicalId);
+      return next;
+    });
+
+    if (activePlayerId === 'p1') {
+      setP1Team((prev) => {
+        const updatedSquad = [...prev.squad, player];
+        return {
+          ...prev,
+          squad: updatedSquad,
+          battingOrder: optimizeBattingOrder(updatedSquad),
+        };
+      });
+    } else {
+      setP2Team((prev) => {
+        const updatedSquad = [...prev.squad, player];
+        return {
+          ...prev,
+          squad: updatedSquad,
+          battingOrder: optimizeBattingOrder(updatedSquad),
+        };
+      });
+    }
+
     if (roomCode) {
       try {
         const r = await draftSelectPlayer(roomCode, myPlayerRole || activePlayerId, player);
@@ -357,67 +384,16 @@ export const App: React.FC = () => {
       return;
     }
 
-    try {
-      const res = await fetch('/api/draft/select', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId: player.id,
-          canonicalId: player.canonicalId,
-          activePlayerId,
-        }),
-      });
-
-      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
-        const data = await res.json();
-        if (!data.success) {
-          alert(data.message || 'Player unavailable');
-          return;
-        }
-        setGlobalDraftedCanonicalIds(new Set(data.draftedCanonicalIds));
-      } else {
-        const newCanonicalSet = new Set(globalDraftedCanonicalIds);
-        newCanonicalSet.add(player.canonicalId);
-        setGlobalDraftedCanonicalIds(newCanonicalSet);
-      }
-
-      if (activePlayerId === 'p1') {
-        const updatedSquad = [...p1Team.squad, player];
-        setP1Team({
-          ...p1Team,
-          squad: updatedSquad,
-          battingOrder: optimizeBattingOrder(updatedSquad),
-        });
-      } else {
-        const updatedSquad = [...p2Team.squad, player];
-        setP2Team({
-          ...p2Team,
-          squad: updatedSquad,
-          battingOrder: optimizeBattingOrder(updatedSquad),
-        });
-      }
-    } catch {
-      // Optimistic update fallback
-      const newCanonicalSet = new Set(globalDraftedCanonicalIds);
-      newCanonicalSet.add(player.canonicalId);
-      setGlobalDraftedCanonicalIds(newCanonicalSet);
-
-      if (activePlayerId === 'p1') {
-        const updatedSquad = [...p1Team.squad, player];
-        setP1Team({
-          ...p1Team,
-          squad: updatedSquad,
-          battingOrder: optimizeBattingOrder(updatedSquad),
-        });
-      } else {
-        const updatedSquad = [...p2Team.squad, player];
-        setP2Team({
-          ...p2Team,
-          squad: updatedSquad,
-          battingOrder: optimizeBattingOrder(updatedSquad),
-        });
-      }
-    }
+    // Fire and forget non-blocking local API update if server route exists
+    fetch('/api/draft/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playerId: player.id,
+        canonicalId: player.canonicalId,
+        activePlayerId,
+      }),
+    }).catch(() => {});
   };
 
   // Complete Draft -> Move to Summary
