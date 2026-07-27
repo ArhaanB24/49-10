@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MatchSimulationResult, UserTeam, PlayerBattingStats } from '../types';
+import { MatchSimulationResult, UserTeam, PlayerBattingStats, PlayerBowlingStats } from '../types';
 import { Trophy, Award, Sparkles, RefreshCw, Layers } from 'lucide-react';
 
 interface ScorecardModalProps {
@@ -163,6 +163,37 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Innings 1 Bowling Figures */}
+          <div className="pt-4 border-t border-slate-200">
+            <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Bowling Figures</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-700 uppercase">
+                  <tr>
+                    <th className="p-3 rounded-l-lg">Bowler</th>
+                    <th className="p-3">Overs</th>
+                    <th className="p-3">Maidens</th>
+                    <th className="p-3">Runs</th>
+                    <th className="p-3">Wickets</th>
+                    <th className="p-3 rounded-r-lg">Economy</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {Array.from(result.firstInnings.bowlingStats.values()).map((bw: PlayerBowlingStats) => (
+                    <tr key={bw.player.id} className="hover:bg-slate-50">
+                      <td className="p-3 font-bold text-slate-900">{bw.player.name}</td>
+                      <td className="p-3 font-semibold text-slate-900">{bw.overs}.{bw.balls}</td>
+                      <td className="p-3 text-slate-700">{bw.maidens}</td>
+                      <td className="p-3 text-slate-700">{bw.runsConceded}</td>
+                      <td className="p-3 font-black text-emerald-700">{bw.wickets}</td>
+                      <td className="p-3 text-slate-900 font-semibold">{bw.economy}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -203,6 +234,37 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Innings 2 Bowling Figures */}
+          <div className="pt-4 border-t border-slate-200">
+            <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Bowling Figures</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-700 uppercase">
+                  <tr>
+                    <th className="p-3 rounded-l-lg">Bowler</th>
+                    <th className="p-3">Overs</th>
+                    <th className="p-3">Maidens</th>
+                    <th className="p-3">Runs</th>
+                    <th className="p-3">Wickets</th>
+                    <th className="p-3 rounded-r-lg">Economy</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {Array.from(result.secondInnings.bowlingStats.values()).map((bw: PlayerBowlingStats) => (
+                    <tr key={bw.player.id} className="hover:bg-slate-50">
+                      <td className="p-3 font-bold text-slate-900">{bw.player.name}</td>
+                      <td className="p-3 font-semibold text-slate-900">{bw.overs}.{bw.balls}</td>
+                      <td className="p-3 text-slate-700">{bw.maidens}</td>
+                      <td className="p-3 text-slate-700">{bw.runsConceded}</td>
+                      <td className="p-3 font-black text-emerald-700">{bw.wickets}</td>
+                      <td className="p-3 text-slate-900 font-semibold">{bw.economy}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

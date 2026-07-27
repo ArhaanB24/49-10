@@ -32,6 +32,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   serverSquadIndex,
   serverTurnStartTime,
 }) => {
+  // Selection processing state to immediately disable all player cards during pick
+  const [isSelecting, setIsSelecting] = useState<boolean>(false);
+
   // Active drafter: 'p1' or 'p2'
   const [localTurn, setLocalTurn] = useState<'p1' | 'p2'>('p1');
   const activeTurn = roomCode ? (serverActiveTurn || 'p1') : localTurn;
@@ -118,7 +121,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
 
   // Handle drafting a player
   const handlePlayerDraft = async (player: Player) => {
-    if (isDraftComplete) return;
+    if (isDraftComplete || isSelecting) return;
 
     if (globalDraftedCanonicalIds.has(player.canonicalId)) {
       alert(`${player.name} has already been drafted by another team in this session!`);
@@ -132,32 +135,37 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       return;
     }
 
-    await onSelectPlayer(player, activeTurn);
+    setIsSelecting(true);
+    try {
+      await onSelectPlayer(player, activeTurn);
 
-    const nextP1Count = activeTurn === 'p1' ? p1Team.squad.length + 1 : p1Team.squad.length;
-    const nextP2Count = activeTurn === 'p2' ? p2Team.squad.length + 1 : p2Team.squad.length;
+      const nextP1Count = activeTurn === 'p1' ? p1Team.squad.length + 1 : p1Team.squad.length;
+      const nextP2Count = activeTurn === 'p2' ? p2Team.squad.length + 1 : p2Team.squad.length;
 
-    if (nextP1Count === 11 && nextP2Count === 11) {
-      onCompleteDraft();
-    } else {
-      let nextTurn: 'p1' | 'p2' = activeTurn;
-      if (activeTurn === 'p1' && nextP2Count < 11) {
-        nextTurn = 'p2';
-      } else if (activeTurn === 'p2' && nextP1Count < 11) {
-        nextTurn = 'p1';
-      } else if (nextP1Count < 11) {
-        nextTurn = 'p1';
-      } else if (nextP2Count < 11) {
-        nextTurn = 'p2';
+      if (nextP1Count === 11 && nextP2Count === 11) {
+        onCompleteDraft();
+      } else {
+        let nextTurn: 'p1' | 'p2' = activeTurn;
+        if (activeTurn === 'p1' && nextP2Count < 11) {
+          nextTurn = 'p2';
+        } else if (activeTurn === 'p2' && nextP1Count < 11) {
+          nextTurn = 'p1';
+        } else if (nextP1Count < 11) {
+          nextTurn = 'p1';
+        } else if (nextP2Count < 11) {
+          nextTurn = 'p2';
+        }
+
+        setLocalTurn(nextTurn);
+        // Automatically switch to a fresh surprise squad for the next turn
+        const newIdx = drawNewRandomSquad(usedSquadIndices);
+        setLocalSquadIndex(newIdx);
+        setUsedSquadIndices((prev) => [...prev, newIdx]);
+        // Reset 30s selection countdown timer
+        setTimeLeft(30);
       }
-
-      setLocalTurn(nextTurn);
-      // Automatically switch to a fresh surprise squad for the next turn
-      const newIdx = drawNewRandomSquad(usedSquadIndices);
-      setLocalSquadIndex(newIdx);
-      setUsedSquadIndices((prev) => [...prev, newIdx]);
-      // Reset 30s selection countdown timer
-      setTimeLeft(30);
+    } finally {
+      setIsSelecting(false);
     }
   };
 
@@ -192,6 +200,11 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       await handlePlayerDraft(chosen);
     }
   }, [currentSquad, globalDraftedCanonicalIds, activeNeeded, usedSquadIndices, drawNewRandomSquad]);
+
+  // Automatically switch pitchTab to activeTurn whenever turn changes
+  useEffect(() => {
+    setPitchTab(activeTurn);
+  }, [activeTurn]);
 
   // 30-Second Countdown Timer effect
   useEffect(() => {
@@ -367,6 +380,39 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           <Sparkles className="w-3.5 h-3.5 text-purple-600" />
           <span>{isLoadingAdvice ? 'Thinking...' : 'AI Advice'}</span>
         </button>
+
+        {/* Active Drafter Current Squad List Strip */}
+        <div className="w-full pt-3 mt-1 border-t border-slate-100 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-emerald-600" />
+              <span>{activeTeam.name}'s Drafted Squad ({activeTeam.squad.length}/11)</span>
+            </span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase">
+              Current Turn Roster
+            </span>
+          </div>
+          {activeTeam.squad.length === 0 ? (
+            <div className="text-xs text-slate-400 italic py-1">
+              No players drafted yet for {activeTeam.name}. Select a player below!
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+              {activeTeam.squad.map((p, idx) => (
+                <div
+                  key={p.id}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 shadow-2xs"
+                >
+                  <span className="text-emerald-600 font-black">{idx + 1}.</span>
+                  <span className="truncate max-w-[130px] font-extrabold">{p.name}</span>
+                  <span className="text-[10px] font-extrabold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                    {p.ovr} {p.role.slice(0, 3).toUpperCase()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* AI Advice Banner */}
@@ -569,7 +615,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
               isUnavailable={isUnavailable || isNotMyRoomTurn || isRoleMaxed}
               unavailableReason={reason}
               isDraftedByMe={isDraftedByActiveMe}
-              disabled={(activeTurn === 'p2' && p2Team.isAi) || isNotMyRoomTurn || isRoleMaxed}
+              disabled={(activeTurn === 'p2' && p2Team.isAi) || isNotMyRoomTurn || isRoleMaxed || isSelecting}
               onSelect={() => handlePlayerDraft(player)}
             />
           );

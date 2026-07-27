@@ -52,12 +52,30 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
   // Sync server toss state if in room
   useEffect(() => {
     if (roomCode) {
-      if (serverTossState) setTossState(serverTossState);
       if (serverTossWinner) setTossWinner(serverTossWinner);
       if (serverTossDecision) setTossDecision(serverTossDecision);
       if (serverCoinResult) setCoinResult(serverCoinResult);
+      if (serverTossState) {
+        if (serverTossState !== 'FLIPPING' || tossState === 'IDLE') {
+          setTossState(serverTossState);
+        }
+      }
     }
   }, [roomCode, serverTossState, serverTossWinner, serverTossDecision, serverCoinResult]);
+
+  // Guaranteed timer transition when tossState is FLIPPING
+  useEffect(() => {
+    if (tossState === 'FLIPPING') {
+      const timer = setTimeout(() => {
+        if (tossWinner === 'p2' && p2Team.isAi) {
+          setTossState('CONFIRMED');
+        } else {
+          setTossState('DECIDING');
+        }
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [tossState, tossWinner, p2Team.isAi]);
 
   // Handle Batting Order shift with realistic cricket guardrails
   const movePlayer = (teamId: 'p1' | 'p2', index: number, direction: 'UP' | 'DOWN') => {
@@ -96,40 +114,38 @@ export const TeamSummaryStep: React.FC<TeamSummaryStepProps> = ({
   const handleFlipCoin = async () => {
     if (roomCode && myPlayerRole === 'p2') return;
 
-    setTossState('FLIPPING');
-    if (roomCode) {
-      await updateRoomState(roomCode, { tossState: 'FLIPPING' });
+    const res = Math.random() > 0.5 ? 'Heads' : 'Tails';
+    const winner = res === userChoice ? 'p1' : 'p2';
+
+    setCoinResult(res);
+    setTossWinner(winner);
+
+    let nextState: 'DECIDING' | 'CONFIRMED' = 'DECIDING';
+    let aiDecision: 'Bat' | 'Bowl' | undefined = undefined;
+
+    if (winner === 'p2' && p2Team.isAi) {
+      aiDecision = Math.random() > 0.5 ? 'Bat' : 'Bowl';
+      setTossDecision(aiDecision);
+      nextState = 'CONFIRMED';
     }
 
-    setTimeout(async () => {
-      const res = Math.random() > 0.5 ? 'Heads' : 'Tails';
-      setCoinResult(res);
-      const winner = res === userChoice ? 'p1' : 'p2';
-      setTossWinner(winner);
-      setTossState('DECIDING');
+    setTossState('FLIPPING');
 
-      if (winner === 'p2' && p2Team.isAi) {
-        const aiDecision = Math.random() > 0.5 ? 'Bat' : 'Bowl';
-        setTossDecision(aiDecision);
-        setTossState('CONFIRMED');
-        if (roomCode) {
-          await updateRoomState(roomCode, {
-            tossWinner: 'p2',
-            tossDecision: aiDecision,
-            tossState: 'CONFIRMED',
-            tossCoinResult: res,
-          });
-        }
-      } else {
-        if (roomCode) {
-          await updateRoomState(roomCode, {
-            tossWinner: winner,
-            tossState: 'DECIDING',
-            tossCoinResult: res,
-          });
-        }
-      }
-    }, 1200);
+    if (roomCode) {
+      await updateRoomState(roomCode, {
+        tossWinner: winner,
+        tossDecision: aiDecision || tossDecision,
+        tossState: 'FLIPPING',
+        tossCoinResult: res,
+      });
+
+      // Update room state with final tossState after flip animation finishes
+      setTimeout(() => {
+        updateRoomState(roomCode, {
+          tossState: nextState,
+        });
+      }, 1250);
+    }
   };
 
   const handleConfirmDecision = async () => {

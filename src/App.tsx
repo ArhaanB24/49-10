@@ -147,24 +147,40 @@ export const App: React.FC = () => {
       if (r.pitch) setPitch(r.pitch);
 
       if (r.p1) {
-        setP1Team((prev) => ({
-          ...prev,
-          name: r.p1.name || prev.name,
-          composition: r.p1.composition || prev.composition,
-          squad: r.p1.squad || [],
-          battingOrder: r.p1.battingOrder?.length ? r.p1.battingOrder : r.p1.squad || [],
-        }));
+        setP1Team((prev) => {
+          const isSameSquadLength = prev.battingOrder?.length === (r.p1.squad?.length || 0);
+          const keepLocalOrder = myPlayerRole === 'p1' && isSameSquadLength && prev.battingOrder.length > 0;
+          return {
+            ...prev,
+            name: r.p1.name || prev.name,
+            composition: r.p1.composition || prev.composition,
+            squad: r.p1.squad || [],
+            battingOrder: keepLocalOrder
+              ? prev.battingOrder
+              : r.p1.battingOrder?.length
+              ? r.p1.battingOrder
+              : r.p1.squad || [],
+          };
+        });
       }
 
       if (r.p2) {
-        setP2Team((prev) => ({
-          ...prev,
-          name: r.p2.name || prev.name,
-          isAi: r.p2.isAi,
-          composition: r.p2.composition || prev.composition,
-          squad: r.p2.squad || [],
-          battingOrder: r.p2.battingOrder?.length ? r.p2.battingOrder : r.p2.squad || [],
-        }));
+        setP2Team((prev) => {
+          const isSameSquadLength = prev.battingOrder?.length === (r.p2.squad?.length || 0);
+          const keepLocalOrder = myPlayerRole === 'p2' && isSameSquadLength && prev.battingOrder.length > 0;
+          return {
+            ...prev,
+            name: r.p2.name || prev.name,
+            isAi: r.p2.isAi,
+            composition: r.p2.composition || prev.composition,
+            squad: r.p2.squad || [],
+            battingOrder: keepLocalOrder
+              ? prev.battingOrder
+              : r.p2.battingOrder?.length
+              ? r.p2.battingOrder
+              : r.p2.squad || [],
+          };
+        });
       }
 
       if (r.globalDraftedCanonicalIds) {
@@ -184,11 +200,11 @@ export const App: React.FC = () => {
     // Listen to real-time BroadcastChannel & storage events
     const unsubscribe = subscribeToRoom(roomCode, applyRoomState);
 
-    // Also poll room state every 1 second
+    // Poll room state every 400ms for fast responsive 2-player mode
     const interval = setInterval(async () => {
       const r = await getRoom(roomCode);
       if (r) applyRoomState(r);
-    }, 1000);
+    }, 400);
 
     return () => {
       unsubscribe();

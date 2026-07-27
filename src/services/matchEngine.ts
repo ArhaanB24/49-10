@@ -192,6 +192,114 @@ function generateCommentary(
   return dotPhrases[Math.floor(Math.random() * dotPhrases.length)];
 }
 
+export function formatOvers(overs: number, balls: number = 0): string {
+  const totalBalls = overs * 6 + balls;
+  const completedOvers = Math.floor(totalBalls / 6);
+  const remBalls = totalBalls % 6;
+  return `${completedOvers}.${remBalls}`;
+}
+
+export function selectActiveBowler(
+  bowlingTeam: UserTeam,
+  innings: InningsState,
+  format: MatchFormat
+): Player {
+  const maxBowlerOvers = format === 'T20' ? 4 : 10;
+
+  // Identify who bowled the immediately preceding over (if any)
+  let previousBowlerId: string | null = null;
+  if (innings.allBallEvents.length > 0) {
+    const lastEvent = innings.allBallEvents[innings.allBallEvents.length - 1];
+    const prevBowlerPlayer = bowlingTeam.squad.find((p) => p.name === lastEvent.bowler);
+    if (prevBowlerPlayer) {
+      if (innings.totalBallsInOver === 0) {
+        // We just started a fresh over, so the last ball's bowler was the previous over's bowler
+        previousBowlerId = prevBowlerPlayer.id;
+      } else {
+        // In the middle of an over, keep the current active bowler!
+        return prevBowlerPlayer;
+      }
+    }
+  }
+
+  // Divide squad into 3 strict priority tiers:
+  // Tier 1: Specialist Bowlers (role === 'Bowler')
+  // Tier 2: All-rounders (role === 'All-rounder')
+  // Tier 3: Batsmen & Wicketkeepers
+  const tier1 = bowlingTeam.squad.filter((p) => p.role === 'Bowler');
+  const tier2 = bowlingTeam.squad.filter((p) => p.role === 'All-rounder');
+  const tier3 = bowlingTeam.squad.filter((p) => p.role !== 'Bowler' && p.role !== 'All-rounder');
+
+  const getBowlerOvers = (player: Player): number => {
+    const stats = innings.bowlingStats.get(player.id);
+    return stats ? stats.overs : 0;
+  };
+
+  const isEligible = (player: Player) => {
+    const overs = getBowlerOvers(player);
+    if (overs >= maxBowlerOvers) return false;
+    // Cannot bowl consecutive overs
+    if (previousBowlerId && player.id === previousBowlerId) return false;
+    return true;
+  };
+
+  // 1. Try Tier 1 (Specialist Bowlers)
+  let eligibleTier1 = tier1.filter(isEligible);
+  if (eligibleTier1.length > 0) {
+    eligibleTier1.sort((a, b) => {
+      const oversA = getBowlerOvers(a);
+      const oversB = getBowlerOvers(b);
+      if (oversA !== oversB) return oversA - oversB;
+      return b.ovr - a.ovr;
+    });
+    return eligibleTier1[0];
+  }
+
+  // If tier1 has bowlers under max who couldn't be picked ONLY because of previousBowlerId:
+  const tier1UnderMax = tier1.filter((p) => getBowlerOvers(p) < maxBowlerOvers);
+  if (tier1UnderMax.length === 1 && tier1UnderMax[0].id === previousBowlerId && (tier2.length > 0 || tier3.length > 0)) {
+    // Pass to Tier 2 so previous bowler doesn't bowl consecutive overs
+  } else if (tier1UnderMax.length > 0) {
+    // If only Tier 1 is left, pick the one not equal to previousBowlerId if possible
+    tier1UnderMax.sort((a, b) => getBowlerOvers(a) - getBowlerOvers(b));
+    return tier1UnderMax[0];
+  }
+
+  // 2. Try Tier 2 (All-rounders)
+  let eligibleTier2 = tier2.filter(isEligible);
+  if (eligibleTier2.length > 0) {
+    eligibleTier2.sort((a, b) => {
+      const oversA = getBowlerOvers(a);
+      const oversB = getBowlerOvers(b);
+      if (oversA !== oversB) return oversA - oversB;
+      return b.ovr - a.ovr;
+    });
+    return eligibleTier2[0];
+  }
+
+  const tier2UnderMax = tier2.filter((p) => getBowlerOvers(p) < maxBowlerOvers);
+  if (tier2UnderMax.length > 0) {
+    tier2UnderMax.sort((a, b) => getBowlerOvers(a) - getBowlerOvers(b));
+    return tier2UnderMax[0];
+  }
+
+  // 3. Try Tier 3 (Batsmen / Part-timers)
+  let eligibleTier3 = tier3.filter(isEligible);
+  if (eligibleTier3.length > 0) {
+    eligibleTier3.sort((a, b) => {
+      const oversA = getBowlerOvers(a);
+      const oversB = getBowlerOvers(b);
+      if (oversA !== oversB) return oversA - oversB;
+      return (b.bowlingAvg || 0) - (a.bowlingAvg || 0);
+    });
+    return eligibleTier3[0];
+  }
+
+  // Fallback: any player in squad
+  const fallback = bowlingTeam.squad.find((p) => getBowlerOvers(p) < maxBowlerOvers);
+  return fallback || bowlingTeam.squad[0];
+}
+
 // Single Ball Simulator Step
 export function simulateNextBall(
   innings: InningsState,
@@ -199,10 +307,10 @@ export function simulateNextBall(
   bowlingTeam: UserTeam,
   format: MatchFormat,
   pitch: PitchType,
-  targetScore?: number
+  targetScore?: number,
+  overrideBowlerId?: string
 ): { updatedInnings: InningsState; ballEvent: BallEvent } {
   const maxOvers = format === 'T20' ? 20 : 50;
-  const maxBowlerOvers = format === 'T20' ? 4 : 10;
 
   // Check if innings already completed
   if (
@@ -221,24 +329,30 @@ export function simulateNextBall(
   const strikerPlayer = battingTeam.battingOrder[innings.currentStrikerIndex];
   const nonStrikerPlayer = battingTeam.battingOrder[innings.currentNonStrikerIndex];
 
-  // Pick bowler from bowling rotation
-  const availableBowlers = bowlingTeam.squad.filter(
-    (p) => p.role === 'Bowler' || p.role === 'All-rounder' || p.bowlingAvg > 0
-  );
-  
-  const bowlerPlayer = availableBowlers[innings.currentBowlerIndex % availableBowlers.length];
+  // Pick bowler based on override or automated priority selection
+  let bowlerPlayer: Player | undefined;
+  if (overrideBowlerId) {
+    bowlerPlayer = bowlingTeam.squad.find((p) => p.id === overrideBowlerId);
+  }
+  if (!bowlerPlayer) {
+    bowlerPlayer = selectActiveBowler(bowlingTeam, innings, format);
+  }
 
   // Get current batting stats & bowling stats
   const strikerStats = innings.battingStats.get(strikerPlayer.id)!;
-  const bowlerStats = innings.bowlingStats.get(bowlerPlayer.id) || {
-    player: bowlerPlayer,
-    overs: 0,
-    balls: 0,
-    maidens: 0,
-    runsConceded: 0,
-    wickets: 0,
-    economy: 0,
-  };
+  let bowlerStats = innings.bowlingStats.get(bowlerPlayer.id);
+  if (!bowlerStats) {
+    bowlerStats = {
+      player: bowlerPlayer,
+      overs: 0,
+      balls: 0,
+      maidens: 0,
+      runsConceded: 0,
+      wickets: 0,
+      economy: 0,
+    };
+    innings.bowlingStats.set(bowlerPlayer.id, bowlerStats);
+  }
 
   // Determine over phase
   const isPowerplay = format === 'T20' ? innings.totalOvers < 6 : innings.totalOvers < 10;
@@ -261,16 +375,21 @@ export function simulateNextBall(
   let pitchBattingFactor = 1.0;
   let pitchWicketFactor = 1.0;
   if (pitch === 'BATTING') {
-    pitchBattingFactor = 1.25;
-    pitchWicketFactor = 0.8;
+    pitchBattingFactor = 1.35;
+    pitchWicketFactor = 0.72;
   } else if (pitch === 'BOWLING') {
-    pitchBattingFactor = 0.82;
-    pitchWicketFactor = 1.3;
+    pitchBattingFactor = 0.75;
+    pitchWicketFactor = 1.38;
   } else if (pitch === 'SPIN') {
     if (bowlerPlayer.bowlingStyle.includes('Spin')) {
-      pitchWicketFactor = 1.4;
-      pitchBattingFactor = 0.85;
+      pitchWicketFactor = 1.45;
+      pitchBattingFactor = 0.78;
+    } else {
+      pitchBattingFactor = 0.90;
     }
+  } else if (pitch === 'BALANCED') {
+    pitchBattingFactor = 1.0;
+    pitchWicketFactor = 1.0;
   }
 
   // Calculate realistic Batting Rating vs Bowling Rating comparison
@@ -368,12 +487,14 @@ export function simulateNextBall(
       singleProb = 0.43;
     }
 
-    // Adjust six probability directly based on batsman's strike rate
+    // Adjust six and boundary probabilities directly based on pitch and batsman's strike rate
+    sixProb = sixProb * pitchBattingFactor;
+    fourProb = fourProb * pitchBattingFactor;
+    twoProb = twoProb * pitchBattingFactor;
+
     const playerSR = strikerPlayer.strikeRate && strikerPlayer.strikeRate > 0 ? strikerPlayer.strikeRate : 125;
-    // Benchmark strike rate is ~130. High SR power-hitters (e.g. 150-200+) get a boost in six probability,
-    // while anchor or lower SR players (e.g. 80-110) have lower six chance.
     const srFactor = playerSR / 130;
-    sixProb = Math.min(0.35, Math.max(0.0005, sixProb * Math.pow(srFactor, 1.3)));
+    sixProb = Math.min(0.40, Math.max(0.0005, sixProb * Math.pow(srFactor, 1.3)));
 
     if (scoreRand < sixProb) {
       runs = 6;
@@ -456,7 +577,7 @@ export function simulateNextBall(
     innings.fallOfWickets.push({
       wicketNum: innings.totalWickets,
       runs: innings.totalRuns,
-      over: `${innings.totalOvers}.${innings.totalBallsInOver}`,
+      over: formatOvers(innings.totalOvers, innings.totalBallsInOver),
       batsman: strikerPlayer.name,
     });
 
@@ -480,6 +601,7 @@ export function simulateNextBall(
     innings.totalOvers += 1;
     innings.totalBallsInOver = 0;
     bowlerStats.overs += 1;
+    bowlerStats.balls = 0;
     innings.currentOverBalls = [];
 
     // Calculate maiden over
@@ -493,9 +615,6 @@ export function simulateNextBall(
     const temp = innings.currentStrikerIndex;
     innings.currentStrikerIndex = innings.currentNonStrikerIndex;
     innings.currentNonStrikerIndex = temp;
-
-    // Rotate bowler for next over
-    innings.currentBowlerIndex = (innings.currentBowlerIndex + 1) % availableBowlers.length;
   }
 
   // Update Economy Rate
@@ -603,7 +722,7 @@ export function runFullSimulation(
 
   const keyHighlights = [
     `Innings 1: ${firstBattingTeam.name} set a target of ${targetScore} runs (${firstInnings.totalRuns}/${firstInnings.totalWickets}).`,
-    `Innings 2: ${secondBattingTeam.name} scored ${secondInnings.totalRuns}/${secondInnings.totalWickets} in ${secondInnings.totalOvers}.${secondInnings.totalBallsInOver} overs.`,
+    `Innings 2: ${secondBattingTeam.name} scored ${secondInnings.totalRuns}/${secondInnings.totalWickets} in ${formatOvers(secondInnings.totalOvers, secondInnings.totalBallsInOver)} overs.`,
     `Player of the Match: ${topPerfPlayer.name} with ${reason}.`,
   ];
 
