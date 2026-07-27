@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MatchSimulationResult, UserTeam, PlayerBattingStats, PlayerBowlingStats } from '../types';
+import { formatOvers } from '../services/matchEngine';
 import { Trophy, Award, Sparkles, RefreshCw, Layers } from 'lucide-react';
 
 interface ScorecardModalProps {
@@ -131,7 +132,7 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <h3 className="text-base font-bold text-slate-900">Innings 1 Scorecard</h3>
             <div className="text-sm font-bold text-slate-900">
-              Total: {result.firstInnings.totalRuns}/{result.firstInnings.totalWickets} ({result.firstInnings.totalOvers}.{result.firstInnings.totalBallsInOver} Overs)
+              Total: {result.firstInnings.totalRuns}/{result.firstInnings.totalWickets} ({formatOvers(result.firstInnings.totalOvers, result.firstInnings.totalBallsInOver)} Overs)
             </div>
           </div>
 
@@ -183,7 +184,7 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
                   {Array.from(result.firstInnings.bowlingStats.values()).map((bw: PlayerBowlingStats) => (
                     <tr key={bw.player.id} className="hover:bg-slate-50">
                       <td className="p-3 font-bold text-slate-900">{bw.player.name}</td>
-                      <td className="p-3 font-semibold text-slate-900">{bw.overs}.{bw.balls}</td>
+                      <td className="p-3 font-semibold text-slate-900">{formatOvers(bw.overs, bw.balls)}</td>
                       <td className="p-3 text-slate-700">{bw.maidens}</td>
                       <td className="p-3 text-slate-700">{bw.runsConceded}</td>
                       <td className="p-3 font-black text-emerald-700">{bw.wickets}</td>
@@ -203,7 +204,7 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <h3 className="text-base font-bold text-slate-900">Innings 2 Scorecard</h3>
             <div className="text-sm font-bold text-slate-900">
-              Total: {result.secondInnings.totalRuns}/{result.secondInnings.totalWickets} ({result.secondInnings.totalOvers}.{result.secondInnings.totalBallsInOver} Overs)
+              Total: {result.secondInnings.totalRuns}/{result.secondInnings.totalWickets} ({formatOvers(result.secondInnings.totalOvers, result.secondInnings.totalBallsInOver)} Overs)
             </div>
           </div>
 
@@ -255,7 +256,7 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
                   {Array.from(result.secondInnings.bowlingStats.values()).map((bw: PlayerBowlingStats) => (
                     <tr key={bw.player.id} className="hover:bg-slate-50">
                       <td className="p-3 font-bold text-slate-900">{bw.player.name}</td>
-                      <td className="p-3 font-semibold text-slate-900">{bw.overs}.{bw.balls}</td>
+                      <td className="p-3 font-semibold text-slate-900">{formatOvers(bw.overs, bw.balls)}</td>
                       <td className="p-3 text-slate-700">{bw.maidens}</td>
                       <td className="p-3 text-slate-700">{bw.runsConceded}</td>
                       <td className="p-3 font-black text-emerald-700">{bw.wickets}</td>

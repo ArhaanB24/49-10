@@ -5,14 +5,20 @@ import {
   MatchSimulationResult,
   PitchType,
   UserTeam,
+  Player,
+  PlayerBowlingStats,
 } from '../types';
-import { initializeInnings, simulateNextBall } from '../services/matchEngine';
+import { initializeInnings, simulateNextBall, formatOvers, selectActiveBowler } from '../services/matchEngine';
 import {
   Play,
   Pause,
   SkipForward,
   Zap,
   Activity,
+  UserCheck,
+  Bot,
+  User,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface SimulationStepProps {
@@ -45,10 +51,6 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
 
   const secondBattingTeam = firstBattingTeam.id === 'p1' ? p2Team : p1Team;
 
-  // Track playback index for precalculated results
-  const [ballIndex1, setBallIndex1] = useState<number>(0);
-  const [ballIndex2, setBallIndex2] = useState<number>(0);
-
   // Innings state
   const [currentInningsNum, setCurrentInningsNum] = useState<1 | 2>(1);
   const [firstInnings, setFirstInnings] = useState<InningsState>(() =>
@@ -56,8 +58,13 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
   );
   const [secondInnings, setSecondInnings] = useState<InningsState | null>(null);
 
+  // Bowler selection mode: 'manual' (default) or 'auto'
+  const [bowlingMode, setBowlingMode] = useState<'manual' | 'auto'>('manual');
+  const [selectedBowlerId, setSelectedBowlerId] = useState<string | null>(null);
+  const [showBowlerModal, setShowBowlerModal] = useState<boolean>(false);
+
   // Simulation controls
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [speedMs, setSpeedMs] = useState<number>(800);
 
   // Audio Context
@@ -109,14 +116,27 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
   const bowlingTeam = currentInningsNum === 1 ? secondBattingTeam : firstBattingTeam;
 
   const maxOvers = format === 'T20' ? 20 : 50;
+  const maxBowlerOvers = format === 'T20' ? 4 : 10;
 
   // Single Ball Step Execution
   const stepOneBall = () => {
+    // Check if manual bowler selection is required
+    if (bowlingMode === 'manual' && !selectedBowlerId) {
+      setIsPlaying(false);
+      setShowBowlerModal(true);
+      return;
+    }
+
     if (currentInningsNum === 1) {
       if (firstInnings.isCompleted) {
         setCurrentInningsNum(2);
+        setSelectedBowlerId(null);
         if (!secondInnings) {
           setSecondInnings(initializeInnings(secondBattingTeam, firstBattingTeam));
+        }
+        if (bowlingMode === 'manual') {
+          setIsPlaying(false);
+          setShowBowlerModal(true);
         }
         return;
       }
@@ -126,7 +146,9 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
         firstBattingTeam,
         secondBattingTeam,
         format,
-        pitch
+        pitch,
+        undefined,
+        selectedBowlerId || undefined
       );
 
       setFirstInnings({ ...updatedInnings });
@@ -138,7 +160,19 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
 
       if (updatedInnings.isCompleted) {
         setCurrentInningsNum(2);
+        setSelectedBowlerId(null);
         setSecondInnings(initializeInnings(secondBattingTeam, firstBattingTeam));
+        if (bowlingMode === 'manual') {
+          setIsPlaying(false);
+          setShowBowlerModal(true);
+        }
+      } else if (updatedInnings.totalBallsInOver === 0) {
+        // Over completed! Reset bowler selection for next over
+        setSelectedBowlerId(null);
+        if (bowlingMode === 'manual') {
+          setIsPlaying(false);
+          setShowBowlerModal(true);
+        }
       }
     } else if (currentInningsNum === 2 && secondInnings) {
       if (secondInnings.isCompleted) {
@@ -153,7 +187,8 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
         firstBattingTeam,
         format,
         pitch,
-        targetScore
+        targetScore,
+        selectedBowlerId || undefined
       );
 
       setSecondInnings({ ...updatedInnings });
@@ -165,6 +200,13 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
 
       if (updatedInnings.isCompleted) {
         finishMatch(firstInnings, updatedInnings);
+      } else if (updatedInnings.totalBallsInOver === 0) {
+        // Over completed! Reset bowler selection for next over
+        setSelectedBowlerId(null);
+        if (bowlingMode === 'manual') {
+          setIsPlaying(false);
+          setShowBowlerModal(true);
+        }
       }
     }
   };
@@ -172,6 +214,7 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
   // Finish match helper
   const finishMatch = (inn1: InningsState, inn2: InningsState) => {
     setIsPlaying(false);
+    setShowBowlerModal(false);
 
     let winner: 'p1' | 'p2' | 'Tie' = 'Tie';
     let winningMargin = 'Match Tied!';
@@ -221,8 +264,8 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
         reason,
       },
       keyHighlights: [
-        `Innings 1: ${firstBattingTeam.name} scored ${inn1.totalRuns}/${inn1.totalWickets}.`,
-        `Innings 2: ${secondBattingTeam.name} scored ${inn2.totalRuns}/${inn2.totalWickets}.`,
+        `Innings 1: ${firstBattingTeam.name} scored ${inn1.totalRuns}/${inn1.totalWickets} in ${formatOvers(inn1.totalOvers, inn1.totalBallsInOver)} overs.`,
+        `Innings 2: ${secondBattingTeam.name} scored ${inn2.totalRuns}/${inn2.totalWickets} in ${formatOvers(inn2.totalOvers, inn2.totalBallsInOver)} overs.`,
         `Player of the Match: ${topPerfPlayer.name} (${reason}).`,
       ],
     });
@@ -262,13 +305,27 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
       }, speedMs);
     }
     return () => clearInterval(interval);
-  }, [isPlaying, speedMs, currentInningsNum, firstInnings, secondInnings]);
+  }, [isPlaying, speedMs, currentInningsNum, firstInnings, secondInnings, bowlingMode, selectedBowlerId]);
+
+  // Handle Play toggle
+  const togglePlay = () => {
+    if (!isPlaying && bowlingMode === 'manual' && !selectedBowlerId) {
+      setShowBowlerModal(true);
+      return;
+    }
+    setIsPlaying(!isPlaying);
+  };
 
   const strikerPlayer = battingTeam.battingOrder[activeInnings.currentStrikerIndex] || battingTeam.squad[0];
   const nonStrikerPlayer = battingTeam.battingOrder[activeInnings.currentNonStrikerIndex] || battingTeam.squad[1];
 
-  const availableBowlers = bowlingTeam.squad.filter((p) => p.role === 'Bowler' || p.role === 'All-rounder' || p.bowlingAvg > 0);
-  const bowlerPlayer = availableBowlers[activeInnings.currentBowlerIndex % availableBowlers.length] || bowlingTeam.squad[10];
+  // Pick display bowler
+  let bowlerPlayer: Player;
+  if (selectedBowlerId) {
+    bowlerPlayer = bowlingTeam.squad.find((p) => p.id === selectedBowlerId) || bowlingTeam.squad[10];
+  } else {
+    bowlerPlayer = selectActiveBowler(bowlingTeam, activeInnings, format);
+  }
 
   const strikerStats = activeInnings.battingStats.get(strikerPlayer.id);
   const nonStrikerStats = activeInnings.battingStats.get(nonStrikerPlayer.id);
@@ -288,11 +345,25 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
 
   const lastEvent = activeInnings.allBallEvents[activeInnings.allBallEvents.length - 1];
 
+  // Helper to handle manual bowler pick
+  const handleSelectBowler = (pId: string) => {
+    setSelectedBowlerId(pId);
+    setShowBowlerModal(false);
+    setIsPlaying(true);
+  };
+
+  const handleAutoPickBowler = () => {
+    const autoB = selectActiveBowler(bowlingTeam, activeInnings, format);
+    setSelectedBowlerId(autoB.id);
+    setShowBowlerModal(false);
+    setIsPlaying(true);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 text-slate-900 space-y-6">
       {/* Stadium Top Banner */}
       <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-6">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-200">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-200">
           <div className="flex items-center gap-3">
             <span className="w-3 h-3 rounded-full bg-emerald-600 animate-ping" />
             <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -303,15 +374,17 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+            {/* Play/Pause */}
             <button
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={togglePlay}
               className="p-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs"
             >
               {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
               <span>{isPlaying ? 'Pause' : 'Play'}</span>
             </button>
 
+            {/* Single Ball Step */}
             <button
               onClick={stepOneBall}
               disabled={isPlaying}
@@ -321,6 +394,7 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
               <SkipForward className="w-3.5 h-3.5" />
             </button>
 
+            {/* Speed selection */}
             {[
               { label: '1x', ms: 800 },
               { label: '2x', ms: 400 },
@@ -336,6 +410,49 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
                 {sp.label}
               </button>
             ))}
+
+            {/* Bowler Mode Toggle Button */}
+            <div className="flex items-center gap-1 pl-2 border-l border-slate-300">
+              <button
+                onClick={() => {
+                  if (bowlingMode === 'manual') {
+                    setBowlingMode('auto');
+                    setShowBowlerModal(false);
+                  } else {
+                    setBowlingMode('manual');
+                    if (!selectedBowlerId) setShowBowlerModal(true);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 border transition-all ${
+                  bowlingMode === 'manual'
+                    ? 'bg-emerald-700 text-white border-emerald-800'
+                    : 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300'
+                }`}
+                title="Toggle between Manual & Auto Bowler selection"
+              >
+                {bowlingMode === 'manual' ? (
+                  <>
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Manual Bowler</span>
+                  </>
+                ) : (
+                  <>
+                    <Bot className="w-3.5 h-3.5" />
+                    <span>Auto Bowler</span>
+                  </>
+                )}
+              </button>
+
+              {bowlingMode === 'manual' && (
+                <button
+                  onClick={() => setShowBowlerModal(true)}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold transition-all"
+                  title="Change Bowler for current over"
+                >
+                  Change Bowler
+                </button>
+              )}
+            </div>
 
             <button
               onClick={handleInstantFinish}
@@ -355,7 +472,7 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
             <div className="text-4xl md:text-5xl font-black text-slate-900 flex items-baseline gap-2">
               <span>{activeInnings.totalRuns}/{activeInnings.totalWickets}</span>
               <span className="text-sm text-slate-500 font-bold">
-                ({activeInnings.totalOvers}.{activeInnings.totalBallsInOver} / {maxOvers} Overs)
+                ({formatOvers(activeInnings.totalOvers, activeInnings.totalBallsInOver)} / {maxOvers} Overs)
               </span>
             </div>
             <div className="flex items-center gap-4 text-xs text-slate-600 font-semibold">
@@ -491,7 +608,14 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
         {/* Bowler */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-900 font-bold">Bowler</span>
+            <span className="text-slate-900 font-bold flex items-center gap-1">
+              <span>Bowler</span>
+              {bowlingMode === 'manual' && (
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">
+                  Manual Pick
+                </span>
+              )}
+            </span>
             <span className="text-slate-500">{bowlerPlayer.bowlingStyle}</span>
           </div>
 
@@ -500,7 +624,7 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
           <div className="grid grid-cols-4 gap-2 text-center p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
             <div>
               <div className="text-[10px] text-slate-500 uppercase">Overs</div>
-              <div className="font-bold text-slate-700">{bowlerStats?.overs || 0}.{bowlerStats?.balls || 0}</div>
+              <div className="font-bold text-slate-700">{formatOvers(bowlerStats?.overs || 0, bowlerStats?.balls || 0)}</div>
             </div>
             <div>
               <div className="text-[10px] text-slate-500 uppercase">Runs</div>
@@ -528,7 +652,7 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
         {lastEvent ? (
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-900">Over {lastEvent.over}.{lastEvent.ball}</span>
+              <span className="font-bold text-slate-900">Over {formatOvers(lastEvent.over, lastEvent.ball)}</span>
               <span className="text-slate-500">{lastEvent.bowler} to {lastEvent.batsmanOnStrike}</span>
             </div>
 
@@ -547,7 +671,7 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
             .reverse()
             .map((b) => (
               <div key={b.id} className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-3">
-                <span className="font-bold text-slate-500 shrink-0">[{b.over}.{b.ball}]</span>
+                <span className="font-bold text-slate-500 shrink-0">[{formatOvers(b.over, b.ball)}]</span>
                 <span className="text-slate-800 line-clamp-1">{b.commentary}</span>
                 <span
                   className={`px-2 py-0.5 rounded font-black text-[10px] shrink-0 ${
@@ -566,6 +690,116 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
             ))}
         </div>
       </div>
+
+      {/* Manual Bowler Selection Modal */}
+      {showBowlerModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-extrabold uppercase text-emerald-800">
+                  Over Break — Select Bowler ({bowlingTeam.name})
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  Choose Bowler for Over {activeInnings.totalOvers + 1}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAutoPickBowler}
+                  className="px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold transition-all flex items-center gap-1"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>Auto Choice</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-3 flex-1">
+              <div className="text-xs text-slate-600 font-medium">
+                Standard cricket rules apply: A bowler cannot bowl 2 consecutive overs and cannot exceed max {maxBowlerOvers} overs.
+              </div>
+
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {bowlingTeam.squad.map((p) => {
+                  const stats = activeInnings.bowlingStats.get(p.id);
+                  const oversBowled = stats?.overs || 0;
+                  const ballsInOver = stats?.balls || 0;
+                  const isMaxOversExceeded = oversBowled >= maxBowlerOvers;
+
+                  const lastBall = activeInnings.allBallEvents[activeInnings.allBallEvents.length - 1];
+                  const isPreviousBowler = lastBall && lastBall.bowler === p.name;
+
+                  const isEligible = !isMaxOversExceeded && !isPreviousBowler;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={`p-3.5 flex items-center justify-between transition-colors ${
+                        isEligible ? 'hover:bg-slate-50 bg-white' : 'bg-slate-50/70 opacity-60'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">{p.name}</span>
+                          <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
+                            {p.role}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 font-semibold flex items-center gap-3">
+                          <span>Overs: <strong>{formatOvers(oversBowled, ballsInOver)} / {maxBowlerOvers}</strong></span>
+                          <span>Runs: <strong>{stats?.runsConceded || 0}</strong></span>
+                          <span>Wkts: <strong className="text-emerald-700">{stats?.wickets || 0}</strong></span>
+                          <span>Econ: <strong>{stats?.economy || 0}</strong></span>
+                        </div>
+                      </div>
+
+                      <div>
+                        {isPreviousBowler ? (
+                          <span className="text-[10px] font-extrabold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                            <ShieldAlert className="w-3 h-3" />
+                            Consecutive Over
+                          </span>
+                        ) : isMaxOversExceeded ? (
+                          <span className="text-[10px] font-extrabold text-rose-800 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
+                            Max Overs Bowled
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleSelectBowler(p.id)}
+                            className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-2xs"
+                          >
+                            Select Bowler
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                Want automatic assignment for rest of the match?
+              </div>
+              <button
+                onClick={() => {
+                  setBowlingMode('auto');
+                  handleAutoPickBowler();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-all"
+              >
+                Switch to Auto Mode
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
