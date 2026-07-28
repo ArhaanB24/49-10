@@ -297,6 +297,14 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
     finishMatch(inn1, inn2);
   };
 
+  // Auto-prompt bowler modal in manual mode when bowler is needed
+  useEffect(() => {
+    if (bowlingMode === 'manual' && !selectedBowlerId && !activeInnings?.isCompleted) {
+      setIsPlaying(false);
+      setShowBowlerModal(true);
+    }
+  }, [bowlingMode, selectedBowlerId, activeInnings?.isCompleted, currentInningsNum, activeInnings?.totalOvers]);
+
   useEffect(() => {
     let interval: any = null;
     if (isPlaying) {
@@ -606,39 +614,58 @@ export const SimulationStep: React.FC<SimulationStepProps> = ({
         </div>
 
         {/* Bowler */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+        <div className={`p-5 rounded-2xl bg-white border space-y-3 shadow-2xs transition-all ${
+          bowlingMode === 'manual' && !selectedBowlerId ? 'border-2 border-emerald-600 bg-emerald-50/20' : 'border-slate-200'
+        }`}>
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-900 font-bold flex items-center gap-1">
               <span>Bowler</span>
-              {bowlingMode === 'manual' && (
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">
-                  Manual Pick
-                </span>
-              )}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                bowlingMode === 'manual' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+              }`}>
+                {bowlingMode === 'manual' ? 'Manual Selection' : 'Auto Pick'}
+              </span>
             </span>
-            <span className="text-slate-500">{bowlerPlayer.bowlingStyle}</span>
+            <span className="text-slate-500">{selectedBowlerId ? bowlerPlayer.bowlingStyle : ''}</span>
           </div>
 
-          <div className="text-base font-black text-slate-900">{bowlerPlayer.name}</div>
+          {bowlingMode === 'manual' && !selectedBowlerId ? (
+            <div className="space-y-3 py-1">
+              <div className="text-sm font-black text-emerald-900 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>Select Bowler for Over {activeInnings.totalOvers + 1}</span>
+              </div>
+              <button
+                onClick={() => setShowBowlerModal(true)}
+                className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-2xs flex items-center justify-center gap-2 transition-all"
+              >
+                Choose Bowler
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="text-base font-black text-slate-900">{bowlerPlayer.name}</div>
 
-          <div className="grid grid-cols-4 gap-2 text-center p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-            <div>
-              <div className="text-[10px] text-slate-500 uppercase">Overs</div>
-              <div className="font-bold text-slate-700">{formatOvers(bowlerStats?.overs || 0, bowlerStats?.balls || 0)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-500 uppercase">Runs</div>
-              <div className="font-bold text-slate-900">{bowlerStats?.runsConceded || 0}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-500 uppercase">Wickets</div>
-              <div className="font-bold text-slate-900">{bowlerStats?.wickets || 0}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-500 uppercase">Econ</div>
-              <div className="font-bold text-slate-900">{bowlerStats?.economy || 0}</div>
-            </div>
-          </div>
+              <div className="grid grid-cols-4 gap-2 text-center p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">Overs</div>
+                  <div className="font-bold text-slate-700">{formatOvers(bowlerStats?.overs || 0, bowlerStats?.balls || 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">Runs</div>
+                  <div className="font-bold text-slate-900">{bowlerStats?.runsConceded || 0}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">Wickets</div>
+                  <div className="font-bold text-slate-900">{bowlerStats?.wickets || 0}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">Econ</div>
+                  <div className="font-bold text-slate-900">{bowlerStats?.economy || 0}</div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
